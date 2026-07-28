@@ -78,6 +78,7 @@ function Game() {
     } else if (s === "playing") {
       gameRef.current.vy = JUMP;
       gameRef.current.flap = 1;
+      playFlap();
     } else if (s === "over") {
       reset();
       setState("ready");
