@@ -300,3 +300,62 @@ function drawPipe(
   ctx.fillRect(x - 4, capY, w + 8, capH);
   ctx.strokeRect(x - 4, capY, w + 8, capH);
 }
+
+function drawSkyline(
+  ctx: CanvasRenderingContext2D,
+  offset: number,
+  groundY: number,
+  opts: {
+    y: number;
+    color: string;
+    windowColor: string;
+    spacing: number;
+    maxH: number;
+    minH: number;
+    seed: number;
+  },
+) {
+  const { y, color, windowColor, spacing, maxH, minH, seed } = opts;
+  const totalWidth = 400;
+  const buildingCount = Math.ceil(totalWidth / spacing) + 3;
+  const scrollLoop = spacing * buildingCount;
+  const off = offset % scrollLoop;
+
+  ctx.fillStyle = color;
+  for (let i = 0; i < buildingCount; i++) {
+    // deterministic pseudo-random height
+    const r = Math.sin((i + seed) * 12.9898) * 43758.5453;
+    const rand = r - Math.floor(r);
+    const h = minH + rand * (maxH - minH);
+    const bx = i * spacing - off;
+    const bw = spacing - 6;
+    const by = y - h;
+    ctx.fillRect(bx, by, bw, groundY - by);
+
+    // roof detail: antenna or water tank
+    const r2 = Math.sin((i + seed) * 78.233) * 43758.5453;
+    const rand2 = r2 - Math.floor(r2);
+    if (rand2 > 0.6) {
+      ctx.fillRect(bx + bw / 2 - 2, by - 12, 4, 12);
+    } else if (rand2 > 0.3) {
+      ctx.fillRect(bx + bw * 0.2, by - 8, bw * 0.3, 8);
+    }
+
+    // windows
+    ctx.fillStyle = windowColor;
+    const winW = 5;
+    const winH = 6;
+    const gapX = 10;
+    const gapY = 12;
+    for (let wy = by + 8; wy < groundY - 6; wy += gapY) {
+      for (let wx = bx + 6; wx < bx + bw - winW; wx += gapX) {
+        const rw = Math.sin((wx * 0.7 + wy * 1.3 + seed) * 12.9898) * 43758.5453;
+        const litRand = rw - Math.floor(rw);
+        if (litRand > 0.35) {
+          ctx.fillRect(wx, wy, winW, winH);
+        }
+      }
+    }
+    ctx.fillStyle = color;
+  }
+}
