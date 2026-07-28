@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
 import kokiAsset from "@/assets/koki-real.png.asset.json";
+import kokiLogo from "@/assets/koki-logo.png";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Flappy Koki - El juego del gato volador" },
-      { name: "description", content: "Ayuda a Koki, el gato volador, a esquivar las tuberías en este divertido juego estilo Flappy Bird." },
-      { property: "og:title", content: "Flappy Koki" },
+      { title: "Estamos Aqui con Koki - El juego del gato volador" },
+      { name: "description", content: "Ayuda a Koki, el gato volador, a esquivar edificios en este divertido juego estilo Flappy Bird." },
+      { property: "og:title", content: "Estamos Aqui con Koki" },
       { property: "og:description", content: "El juego del gato volador Koki" },
     ],
   }),
@@ -24,13 +25,14 @@ const PIPE_SPEED = 2.5;
 const KOKI_SIZE = 60;
 
 type Pipe = { x: number; top: number; passed: boolean };
+type GameState = "menu" | "ready" | "playing" | "over";
 
 function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
-  const [state, setState] = useState<"ready" | "playing" | "over">("ready");
+  const [state, setState] = useState<GameState>("menu");
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -42,6 +44,7 @@ function Game() {
     frame: 0,
     score: 0,
     rot: 0,
+    flap: 0, // flap animation timer (1 -> 0)
   });
 
   useEffect(() => {
@@ -54,22 +57,31 @@ function Game() {
   }, []);
 
   const reset = () => {
-    gameRef.current = { y: HEIGHT / 2, vy: 0, pipes: [], frame: 0, score: 0, rot: 0 };
+    gameRef.current = { y: HEIGHT / 2, vy: 0, pipes: [], frame: 0, score: 0, rot: 0, flap: 0 };
     setScore(0);
   };
 
+  const startGame = useCallback(() => {
+    reset();
+    setState("playing");
+    gameRef.current.vy = JUMP;
+    gameRef.current.flap = 1;
+  }, []);
+
   const flap = useCallback(() => {
-    if (stateRef.current === "ready") {
-      reset();
-      setState("playing");
+    const s = stateRef.current;
+    if (s === "menu") return; // menu requires button
+    if (s === "ready") {
+      startGame();
+    } else if (s === "playing") {
       gameRef.current.vy = JUMP;
-    } else if (stateRef.current === "playing") {
-      gameRef.current.vy = JUMP;
-    } else if (stateRef.current === "over") {
+      gameRef.current.flap = 1;
+    } else if (s === "over") {
       reset();
       setState("ready");
     }
-  }, []);
+  }, [startGame]);
+
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -127,10 +139,14 @@ function Game() {
       });
 
 
+
+      // always tick global frame for parallax and idle animation
+      g.frame++;
+      if (g.flap > 0) g.flap = Math.max(0, g.flap - 0.06);
+
       if (stateRef.current === "playing") {
         g.vy += GRAVITY;
         g.y += g.vy;
-        g.frame++;
         g.rot = Math.max(-0.4, Math.min(1.2, g.vy * 0.08));
 
         if (g.frame % 90 === 0) {
@@ -159,6 +175,10 @@ function Game() {
             setScore(g.score);
           }
         }
+      } else {
+        // idle bob on menu / ready / over
+        g.y = HEIGHT / 2 + Math.sin(g.frame * 0.08) * 12;
+        g.rot = Math.sin(g.frame * 0.08) * 0.1;
       }
 
       // pipes
@@ -176,15 +196,35 @@ function Game() {
         ctx.fillRect(i - off, HEIGHT - 22, 16, 4);
       }
 
-      // koki
+      // koki with flap animation
       const img = imgRef.current;
       if (img && img.complete) {
+        // flap: strong scale bounce + extra upward tilt on jump; idle: gentle wing flutter
+        const flapPulse = g.flap; // 1 -> 0 after jump
+        const idleFlutter = Math.sin(g.frame * 0.35) * 0.06;
+        const scaleY = 1 + idleFlutter - flapPulse * 0.18; // squash on flap
+        const scaleX = 1 - idleFlutter + flapPulse * 0.15; // stretch wide
+        const extraRot = -flapPulse * 0.35;
+
+        // motion blur trail on flap
+        if (flapPulse > 0.2) {
+          ctx.save();
+          ctx.globalAlpha = flapPulse * 0.35;
+          ctx.translate(80 - 12, g.y + 4);
+          ctx.rotate(g.rot + extraRot);
+          ctx.scale(scaleX, scaleY);
+          ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
+          ctx.restore();
+        }
+
         ctx.save();
         ctx.translate(80, g.y);
-        ctx.rotate(g.rot);
+        ctx.rotate(g.rot + extraRot);
+        ctx.scale(scaleX, scaleY);
         ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
         ctx.restore();
       }
+
 
       // score
       ctx.fillStyle = "#fff";
@@ -217,16 +257,11 @@ function Game() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gradient-to-b from-slate-900 via-indigo-900 to-orange-400 p-4">
-      <h1 className="text-4xl font-black tracking-tight text-white drop-shadow-lg">
-        Flappy Koki 🐱
-      </h1>
-      <p className="text-sm font-medium text-white/90 drop-shadow">
-        Toca / click / espacio para volar
-      </p>
       <div
         className="relative cursor-pointer overflow-hidden rounded-2xl border-4 border-white shadow-2xl"
         style={{ width: WIDTH, maxWidth: "100%" }}
         onPointerDown={(e) => {
+          if (state === "menu") return;
           e.preventDefault();
           flap();
         }}
@@ -237,6 +272,33 @@ function Game() {
           height={HEIGHT}
           className="block h-auto w-full touch-none select-none"
         />
+
+        {state === "menu" && (
+          <Overlay>
+            <div className="flex flex-col items-center gap-6 px-6 text-center">
+              <img
+                src={kokiLogo}
+                alt="Estamos aqui con Koki"
+                className="w-full max-w-[340px] animate-[fade-in_0.5s_ease-out] drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
+                style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }}
+              />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startGame();
+                }}
+                className="rounded-full bg-gradient-to-b from-amber-300 to-orange-500 px-10 py-4 text-2xl font-black tracking-wide text-white shadow-[0_6px_0_rgb(154_52_18),0_10px_20px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:translate-y-1 active:shadow-[0_2px_0_rgb(154_52_18),0_4px_10px_rgba(0,0,0,0.4)]"
+                style={{ WebkitTextStroke: "1px rgba(0,0,0,0.3)" }}
+              >
+                ▶ JUGAR
+              </button>
+              <div className="text-xs font-semibold uppercase tracking-widest text-white/80">
+                Mejor: {best}
+              </div>
+            </div>
+          </Overlay>
+        )}
+
         {state === "ready" && (
           <Overlay>
             <div className="text-center">
@@ -245,6 +307,7 @@ function Game() {
             </div>
           </Overlay>
         )}
+
         {state === "over" && (
           <Overlay>
             <div className="rounded-xl bg-white/95 px-8 py-6 text-center shadow-xl">
@@ -255,19 +318,46 @@ function Game() {
               <div className="text-slate-700">
                 Mejor: <span className="font-bold">{best}</span>
               </div>
-              <div className="mt-4 rounded-lg bg-orange-500 px-4 py-2 font-bold text-white">
-                Toca para reintentar
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startGame();
+                  }}
+                  className="rounded-lg bg-orange-500 px-4 py-2 font-bold text-white hover:bg-orange-600"
+                >
+                  Reintentar
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    reset();
+                    setState("menu");
+                  }}
+                  className="rounded-lg bg-slate-200 px-4 py-2 font-bold text-slate-800 hover:bg-slate-300"
+                >
+                  Menú
+                </button>
               </div>
             </div>
           </Overlay>
         )}
       </div>
-      <div className="text-sm font-medium text-white/90 drop-shadow">
-        Mejor puntuación: <span className="font-bold">{best}</span>
-      </div>
+      {state !== "menu" && (
+        <p className="text-sm font-medium text-white/90 drop-shadow">
+          Toca / click / espacio para volar · Mejor: {best}
+        </p>
+      )}
+      <style>{`
+        @keyframes koki-logo-bob {
+          0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
+          50% { transform: translateY(-8px) rotate(1.5deg) scale(1.03); }
+        }
+      `}</style>
     </div>
   );
 }
+
 
 function Overlay({ children }: { children: React.ReactNode }) {
   return (
