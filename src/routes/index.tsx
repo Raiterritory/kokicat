@@ -67,6 +67,7 @@ function Game() {
     setState("playing");
     gameRef.current.vy = JUMP;
     gameRef.current.flap = 1;
+    playFlap();
   }, []);
 
   const flap = useCallback(() => {
