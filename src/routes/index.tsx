@@ -167,13 +167,13 @@ function Game() {
         drawPipe(ctx, p.x, p.top + GAP, PIPE_W, HEIGHT - 40 - (p.top + GAP), false);
       }
 
-      // ground
-      ctx.fillStyle = "#8ec36a";
+      // ground (asphalt street)
+      ctx.fillStyle = "#2a2a30";
       ctx.fillRect(0, HEIGHT - 40, WIDTH, 40);
-      ctx.fillStyle = "#6ea34a";
-      for (let i = 0; i < WIDTH; i += 20) {
-        const off = (g.frame * PIPE_SPEED) % 20;
-        ctx.fillRect(i - off, HEIGHT - 40, 10, 6);
+      ctx.fillStyle = "#f5d547";
+      for (let i = 0; i < WIDTH; i += 30) {
+        const off = (g.frame * PIPE_SPEED) % 30;
+        ctx.fillRect(i - off, HEIGHT - 22, 16, 4);
       }
 
       // koki
@@ -216,7 +216,7 @@ function Game() {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gradient-to-b from-sky-300 to-amber-100 p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gradient-to-b from-slate-900 via-indigo-900 to-orange-400 p-4">
       <h1 className="text-4xl font-black tracking-tight text-white drop-shadow-lg">
         Flappy Koki 🐱
       </h1>
@@ -262,7 +262,7 @@ function Game() {
           </Overlay>
         )}
       </div>
-      <div className="text-sm font-medium text-slate-700">
+      <div className="text-sm font-medium text-white/90 drop-shadow">
         Mejor puntuación: <span className="font-bold">{best}</span>
       </div>
     </div>
@@ -286,12 +286,12 @@ function drawPipe(
   isTop: boolean,
 ) {
   const grad = ctx.createLinearGradient(x, 0, x + w, 0);
-  grad.addColorStop(0, "#4ea54a");
-  grad.addColorStop(0.4, "#8ed66b");
-  grad.addColorStop(1, "#3d8a3a");
+  grad.addColorStop(0, "#5a6478");
+  grad.addColorStop(0.4, "#8b95ad");
+  grad.addColorStop(1, "#3d4658");
   ctx.fillStyle = grad;
   ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = "#2d6b2a";
+  ctx.strokeStyle = "#1f2635";
   ctx.lineWidth = 3;
   ctx.strokeRect(x, y, w, h);
   // cap
