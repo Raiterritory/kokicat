@@ -139,10 +139,14 @@ function Game() {
       });
 
 
+
+      // always tick global frame for parallax and idle animation
+      g.frame++;
+      if (g.flap > 0) g.flap = Math.max(0, g.flap - 0.06);
+
       if (stateRef.current === "playing") {
         g.vy += GRAVITY;
         g.y += g.vy;
-        g.frame++;
         g.rot = Math.max(-0.4, Math.min(1.2, g.vy * 0.08));
 
         if (g.frame % 90 === 0) {
@@ -171,6 +175,10 @@ function Game() {
             setScore(g.score);
           }
         }
+      } else {
+        // idle bob on menu / ready / over
+        g.y = HEIGHT / 2 + Math.sin(g.frame * 0.08) * 12;
+        g.rot = Math.sin(g.frame * 0.08) * 0.1;
       }
 
       // pipes
@@ -188,15 +196,35 @@ function Game() {
         ctx.fillRect(i - off, HEIGHT - 22, 16, 4);
       }
 
-      // koki
+      // koki with flap animation
       const img = imgRef.current;
       if (img && img.complete) {
+        // flap: strong scale bounce + extra upward tilt on jump; idle: gentle wing flutter
+        const flapPulse = g.flap; // 1 -> 0 after jump
+        const idleFlutter = Math.sin(g.frame * 0.35) * 0.06;
+        const scaleY = 1 + idleFlutter - flapPulse * 0.18; // squash on flap
+        const scaleX = 1 - idleFlutter + flapPulse * 0.15; // stretch wide
+        const extraRot = -flapPulse * 0.35;
+
+        // motion blur trail on flap
+        if (flapPulse > 0.2) {
+          ctx.save();
+          ctx.globalAlpha = flapPulse * 0.35;
+          ctx.translate(80 - 12, g.y + 4);
+          ctx.rotate(g.rot + extraRot);
+          ctx.scale(scaleX, scaleY);
+          ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
+          ctx.restore();
+        }
+
         ctx.save();
         ctx.translate(80, g.y);
-        ctx.rotate(g.rot);
+        ctx.rotate(g.rot + extraRot);
+        ctx.scale(scaleX, scaleY);
         ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
         ctx.restore();
       }
+
 
       // score
       ctx.fillStyle = "#fff";
