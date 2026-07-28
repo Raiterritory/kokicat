@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
 import kokiAsset from "@/assets/koki-real.png.asset.json";
 import kokiLogo from "@/assets/koki-logo.png";
+import { playFlap, playMeow } from "@/lib/sounds";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -66,6 +67,7 @@ function Game() {
     setState("playing");
     gameRef.current.vy = JUMP;
     gameRef.current.flap = 1;
+    playFlap();
   }, []);
 
   const flap = useCallback(() => {
@@ -76,6 +78,7 @@ function Game() {
     } else if (s === "playing") {
       gameRef.current.vy = JUMP;
       gameRef.current.flap = 1;
+      playFlap();
     } else if (s === "over") {
       reset();
       setState("ready");
@@ -173,6 +176,7 @@ function Game() {
             p.passed = true;
             g.score++;
             setScore(g.score);
+            playMeow();
           }
         }
       } else {
