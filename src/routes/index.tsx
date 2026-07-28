@@ -176,6 +176,7 @@ function Game() {
             p.passed = true;
             g.score++;
             setScore(g.score);
+            playMeow();
           }
         }
       } else {
