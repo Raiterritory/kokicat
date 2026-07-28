@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
 import kokiAsset from "@/assets/koki-real.png.asset.json";
 import kokiLogo from "@/assets/koki-logo.png";
+import { playFlap, playMeow } from "@/lib/sounds";
 
 export const Route = createFileRoute("/")({
   head: () => ({
