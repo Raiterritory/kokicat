@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
 import kokiAsset from "@/assets/koki-real.png.asset.json";
+import kokiLogo from "@/assets/koki-logo.png";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Flappy Koki - El juego del gato volador" },
-      { name: "description", content: "Ayuda a Koki, el gato volador, a esquivar las tuberías en este divertido juego estilo Flappy Bird." },
-      { property: "og:title", content: "Flappy Koki" },
+      { title: "Estamos Aqui con Koki - El juego del gato volador" },
+      { name: "description", content: "Ayuda a Koki, el gato volador, a esquivar edificios en este divertido juego estilo Flappy Bird." },
+      { property: "og:title", content: "Estamos Aqui con Koki" },
       { property: "og:description", content: "El juego del gato volador Koki" },
     ],
   }),
@@ -24,13 +25,14 @@ const PIPE_SPEED = 2.5;
 const KOKI_SIZE = 60;
 
 type Pipe = { x: number; top: number; passed: boolean };
+type GameState = "menu" | "ready" | "playing" | "over";
 
 function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
-  const [state, setState] = useState<"ready" | "playing" | "over">("ready");
+  const [state, setState] = useState<GameState>("menu");
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -42,6 +44,7 @@ function Game() {
     frame: 0,
     score: 0,
     rot: 0,
+    flap: 0, // flap animation timer (1 -> 0)
   });
 
   useEffect(() => {
@@ -54,22 +57,31 @@ function Game() {
   }, []);
 
   const reset = () => {
-    gameRef.current = { y: HEIGHT / 2, vy: 0, pipes: [], frame: 0, score: 0, rot: 0 };
+    gameRef.current = { y: HEIGHT / 2, vy: 0, pipes: [], frame: 0, score: 0, rot: 0, flap: 0 };
     setScore(0);
   };
 
+  const startGame = useCallback(() => {
+    reset();
+    setState("playing");
+    gameRef.current.vy = JUMP;
+    gameRef.current.flap = 1;
+  }, []);
+
   const flap = useCallback(() => {
-    if (stateRef.current === "ready") {
-      reset();
-      setState("playing");
+    const s = stateRef.current;
+    if (s === "menu") return; // menu requires button
+    if (s === "ready") {
+      startGame();
+    } else if (s === "playing") {
       gameRef.current.vy = JUMP;
-    } else if (stateRef.current === "playing") {
-      gameRef.current.vy = JUMP;
-    } else if (stateRef.current === "over") {
+      gameRef.current.flap = 1;
+    } else if (s === "over") {
       reset();
       setState("ready");
     }
-  }, []);
+  }, [startGame]);
+
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
