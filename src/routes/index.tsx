@@ -93,22 +93,39 @@ function Game() {
 
       // sky gradient
       const grad = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-      grad.addColorStop(0, "#7ec8e3");
-      grad.addColorStop(1, "#fce7a0");
+      grad.addColorStop(0, "#1a2947");
+      grad.addColorStop(0.5, "#4a5f8a");
+      grad.addColorStop(1, "#f4a06a");
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-      // clouds
-      ctx.fillStyle = "rgba(255,255,255,0.7)";
-      for (let i = 0; i < 3; i++) {
-        const cx = ((g.frame * 0.3 + i * 180) % (WIDTH + 100)) - 50;
-        const cy = 60 + i * 90;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 22, 0, Math.PI * 2);
-        ctx.arc(cx + 22, cy + 4, 18, 0, Math.PI * 2);
-        ctx.arc(cx - 20, cy + 6, 16, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      // sun
+      ctx.fillStyle = "rgba(255, 210, 140, 0.55)";
+      ctx.beginPath();
+      ctx.arc(WIDTH - 80, 140, 55, 0, Math.PI * 2);
+      ctx.fill();
+
+      // far city skyline (slow parallax)
+      drawSkyline(ctx, g.frame * 0.3, HEIGHT - 40, {
+        y: HEIGHT - 200,
+        color: "#2b2f52",
+        windowColor: "rgba(255, 200, 120, 0.35)",
+        spacing: 55,
+        maxH: 130,
+        minH: 60,
+        seed: 1,
+      });
+      // near city skyline (faster parallax)
+      drawSkyline(ctx, g.frame * 0.9, HEIGHT - 40, {
+        y: HEIGHT - 140,
+        color: "#141a33",
+        windowColor: "rgba(255, 220, 140, 0.75)",
+        spacing: 48,
+        maxH: 110,
+        minH: 45,
+        seed: 7,
+      });
+
 
       if (stateRef.current === "playing") {
         g.vy += GRAVITY;
