@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
-import kokiImg from "@/assets/koki.png";
+import kokiAsset from "@/assets/koki-real.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -48,7 +48,8 @@ function Game() {
     const b = Number(localStorage.getItem("koki-best") || 0);
     setBest(b);
     const img = new Image();
-    img.src = kokiImg;
+    img.crossOrigin = "anonymous";
+    img.src = kokiAsset.url;
     imgRef.current = img;
   }, []);
 
