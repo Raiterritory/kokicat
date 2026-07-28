@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
-import kokiImg from "@/assets/koki.png";
+import kokiAsset from "@/assets/koki-real.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -48,7 +48,8 @@ function Game() {
     const b = Number(localStorage.getItem("koki-best") || 0);
     setBest(b);
     const img = new Image();
-    img.src = kokiImg;
+    img.crossOrigin = "anonymous";
+    img.src = kokiAsset.url;
     imgRef.current = img;
   }, []);
 
@@ -92,22 +93,39 @@ function Game() {
 
       // sky gradient
       const grad = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-      grad.addColorStop(0, "#7ec8e3");
-      grad.addColorStop(1, "#fce7a0");
+      grad.addColorStop(0, "#1a2947");
+      grad.addColorStop(0.5, "#4a5f8a");
+      grad.addColorStop(1, "#f4a06a");
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-      // clouds
-      ctx.fillStyle = "rgba(255,255,255,0.7)";
-      for (let i = 0; i < 3; i++) {
-        const cx = ((g.frame * 0.3 + i * 180) % (WIDTH + 100)) - 50;
-        const cy = 60 + i * 90;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 22, 0, Math.PI * 2);
-        ctx.arc(cx + 22, cy + 4, 18, 0, Math.PI * 2);
-        ctx.arc(cx - 20, cy + 6, 16, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      // sun
+      ctx.fillStyle = "rgba(255, 210, 140, 0.55)";
+      ctx.beginPath();
+      ctx.arc(WIDTH - 80, 140, 55, 0, Math.PI * 2);
+      ctx.fill();
+
+      // far city skyline (slow parallax)
+      drawSkyline(ctx, g.frame * 0.3, HEIGHT - 40, {
+        y: HEIGHT - 200,
+        color: "#2b2f52",
+        windowColor: "rgba(255, 200, 120, 0.35)",
+        spacing: 55,
+        maxH: 130,
+        minH: 60,
+        seed: 1,
+      });
+      // near city skyline (faster parallax)
+      drawSkyline(ctx, g.frame * 0.9, HEIGHT - 40, {
+        y: HEIGHT - 140,
+        color: "#141a33",
+        windowColor: "rgba(255, 220, 140, 0.75)",
+        spacing: 48,
+        maxH: 110,
+        minH: 45,
+        seed: 7,
+      });
+
 
       if (stateRef.current === "playing") {
         g.vy += GRAVITY;
@@ -149,13 +167,13 @@ function Game() {
         drawPipe(ctx, p.x, p.top + GAP, PIPE_W, HEIGHT - 40 - (p.top + GAP), false);
       }
 
-      // ground
-      ctx.fillStyle = "#8ec36a";
+      // ground (asphalt street)
+      ctx.fillStyle = "#2a2a30";
       ctx.fillRect(0, HEIGHT - 40, WIDTH, 40);
-      ctx.fillStyle = "#6ea34a";
-      for (let i = 0; i < WIDTH; i += 20) {
-        const off = (g.frame * PIPE_SPEED) % 20;
-        ctx.fillRect(i - off, HEIGHT - 40, 10, 6);
+      ctx.fillStyle = "#f5d547";
+      for (let i = 0; i < WIDTH; i += 30) {
+        const off = (g.frame * PIPE_SPEED) % 30;
+        ctx.fillRect(i - off, HEIGHT - 22, 16, 4);
       }
 
       // koki
@@ -198,7 +216,7 @@ function Game() {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gradient-to-b from-sky-300 to-amber-100 p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gradient-to-b from-slate-900 via-indigo-900 to-orange-400 p-4">
       <h1 className="text-4xl font-black tracking-tight text-white drop-shadow-lg">
         Flappy Koki 🐱
       </h1>
@@ -244,7 +262,7 @@ function Game() {
           </Overlay>
         )}
       </div>
-      <div className="text-sm font-medium text-slate-700">
+      <div className="text-sm font-medium text-white/90 drop-shadow">
         Mejor puntuación: <span className="font-bold">{best}</span>
       </div>
     </div>
@@ -268,12 +286,12 @@ function drawPipe(
   isTop: boolean,
 ) {
   const grad = ctx.createLinearGradient(x, 0, x + w, 0);
-  grad.addColorStop(0, "#4ea54a");
-  grad.addColorStop(0.4, "#8ed66b");
-  grad.addColorStop(1, "#3d8a3a");
+  grad.addColorStop(0, "#5a6478");
+  grad.addColorStop(0.4, "#8b95ad");
+  grad.addColorStop(1, "#3d4658");
   ctx.fillStyle = grad;
   ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = "#2d6b2a";
+  ctx.strokeStyle = "#1f2635";
   ctx.lineWidth = 3;
   ctx.strokeRect(x, y, w, h);
   // cap
@@ -281,4 +299,63 @@ function drawPipe(
   const capY = isTop ? y + h - capH : y;
   ctx.fillRect(x - 4, capY, w + 8, capH);
   ctx.strokeRect(x - 4, capY, w + 8, capH);
+}
+
+function drawSkyline(
+  ctx: CanvasRenderingContext2D,
+  offset: number,
+  groundY: number,
+  opts: {
+    y: number;
+    color: string;
+    windowColor: string;
+    spacing: number;
+    maxH: number;
+    minH: number;
+    seed: number;
+  },
+) {
+  const { y, color, windowColor, spacing, maxH, minH, seed } = opts;
+  const totalWidth = 400;
+  const buildingCount = Math.ceil(totalWidth / spacing) + 3;
+  const scrollLoop = spacing * buildingCount;
+  const off = offset % scrollLoop;
+
+  ctx.fillStyle = color;
+  for (let i = 0; i < buildingCount; i++) {
+    // deterministic pseudo-random height
+    const r = Math.sin((i + seed) * 12.9898) * 43758.5453;
+    const rand = r - Math.floor(r);
+    const h = minH + rand * (maxH - minH);
+    const bx = i * spacing - off;
+    const bw = spacing - 6;
+    const by = y - h;
+    ctx.fillRect(bx, by, bw, groundY - by);
+
+    // roof detail: antenna or water tank
+    const r2 = Math.sin((i + seed) * 78.233) * 43758.5453;
+    const rand2 = r2 - Math.floor(r2);
+    if (rand2 > 0.6) {
+      ctx.fillRect(bx + bw / 2 - 2, by - 12, 4, 12);
+    } else if (rand2 > 0.3) {
+      ctx.fillRect(bx + bw * 0.2, by - 8, bw * 0.3, 8);
+    }
+
+    // windows
+    ctx.fillStyle = windowColor;
+    const winW = 5;
+    const winH = 6;
+    const gapX = 10;
+    const gapY = 12;
+    for (let wy = by + 8; wy < groundY - 6; wy += gapY) {
+      for (let wx = bx + 6; wx < bx + bw - winW; wx += gapX) {
+        const rw = Math.sin((wx * 0.7 + wy * 1.3 + seed) * 12.9898) * 43758.5453;
+        const litRand = rw - Math.floor(rw);
+        if (litRand > 0.35) {
+          ctx.fillRect(wx, wy, winW, winH);
+        }
+      }
+    }
+    ctx.fillStyle = color;
+  }
 }
