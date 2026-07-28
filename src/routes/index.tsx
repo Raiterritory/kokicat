@@ -16,16 +16,26 @@ export const Route = createFileRoute("/")({
   component: Game,
 });
 
-const WIDTH = 400;
-const HEIGHT = 600;
 const GRAVITY = 0.5;
 const JUMP = -8.5;
 const PIPE_W = 70;
-const GAP = 170;
+const GAP = 190;
 const PIPE_SPEED = 2.5;
-const KOKI_SIZE = 60;
+const KOKI_SIZE = 64;
+const GROUND_H = 40;
 
 type Pipe = { x: number; top: number; passed: boolean };
+type Particle = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  size: number;
+  color: string;
+  kind: "puff" | "star";
+};
 type GameState = "menu" | "ready" | "playing" | "over";
 
 function Game() {
@@ -38,14 +48,19 @@ function Game() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  // dynamic viewport
+  const sizeRef = useRef({ w: 400, h: 600 });
+  const [size, setSize] = useState({ w: 400, h: 600 });
+
   const gameRef = useRef({
-    y: HEIGHT / 2,
+    y: 300,
     vy: 0,
     pipes: [] as Pipe[],
     frame: 0,
     score: 0,
     rot: 0,
-    flap: 0, // flap animation timer (1 -> 0)
+    flap: 0,
+    particles: [] as Particle[],
   });
 
   useEffect(() => {
@@ -55,11 +70,74 @@ function Game() {
     img.crossOrigin = "anonymous";
     img.src = kokiAsset.url;
     imgRef.current = img;
+
+    const updateSize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      sizeRef.current = { w, h };
+      setSize({ w, h });
+    };
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    window.addEventListener("orientationchange", updateSize);
+    return () => {
+      window.removeEventListener("resize", updateSize);
+      window.removeEventListener("orientationchange", updateSize);
+    };
   }, []);
 
   const reset = () => {
-    gameRef.current = { y: HEIGHT / 2, vy: 0, pipes: [], frame: 0, score: 0, rot: 0, flap: 0 };
+    const { h } = sizeRef.current;
+    gameRef.current = {
+      y: h / 2,
+      vy: 0,
+      pipes: [],
+      frame: 0,
+      score: 0,
+      rot: 0,
+      flap: 0,
+      particles: [],
+    };
     setScore(0);
+  };
+
+  const spawnPuff = (x: number, y: number) => {
+    const g = gameRef.current;
+    for (let i = 0; i < 10; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 1 + Math.random() * 2.5;
+      g.particles.push({
+        x,
+        y,
+        vx: Math.cos(a) * sp - 1.5,
+        vy: Math.sin(a) * sp + 0.5,
+        life: 30,
+        maxLife: 30,
+        size: 4 + Math.random() * 4,
+        color: "rgba(255,255,255,0.9)",
+        kind: "puff",
+      });
+    }
+  };
+
+  const spawnStars = (x: number, y: number) => {
+    const g = gameRef.current;
+    const colors = ["#ffd966", "#ffb84d", "#fff2a8", "#ff8fa3"];
+    for (let i = 0; i < 14; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 2 + Math.random() * 3.5;
+      g.particles.push({
+        x,
+        y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        life: 40,
+        maxLife: 40,
+        size: 3 + Math.random() * 4,
+        color: colors[i % colors.length],
+        kind: "star",
+      });
+    }
   };
 
   const startGame = useCallback(() => {
@@ -67,24 +145,25 @@ function Game() {
     setState("playing");
     gameRef.current.vy = JUMP;
     gameRef.current.flap = 1;
+    spawnPuff(80, gameRef.current.y + 10);
     playFlap();
   }, []);
 
   const flap = useCallback(() => {
     const s = stateRef.current;
-    if (s === "menu") return; // menu requires button
+    if (s === "menu") return;
     if (s === "ready") {
       startGame();
     } else if (s === "playing") {
       gameRef.current.vy = JUMP;
       gameRef.current.flap = 1;
+      spawnPuff(80, gameRef.current.y + 10);
       playFlap();
     } else if (s === "over") {
       reset();
       setState("ready");
     }
   }, [startGame]);
-
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -104,6 +183,7 @@ function Game() {
     let raf = 0;
 
     const draw = () => {
+      const { w: WIDTH, h: HEIGHT } = sizeRef.current;
       const g = gameRef.current;
 
       // sky gradient
@@ -115,35 +195,31 @@ function Game() {
       ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
       // sun
-      ctx.fillStyle = "rgba(255, 210, 140, 0.55)";
+      ctx.fillStyle = "rgba(255, 210, 140, 0.45)";
       ctx.beginPath();
       ctx.arc(WIDTH - 80, 140, 55, 0, Math.PI * 2);
       ctx.fill();
 
-      // far city skyline (slow parallax)
-      drawSkyline(ctx, g.frame * 0.3, HEIGHT - 40, {
-        y: HEIGHT - 200,
-        color: "#2b2f52",
-        windowColor: "rgba(255, 200, 120, 0.35)",
-        spacing: 55,
-        maxH: 130,
-        minH: 60,
+      // simplified skyline: two flat silhouette layers, no windows
+      drawSimpleSkyline(ctx, WIDTH, HEIGHT - GROUND_H, {
+        offset: g.frame * 0.3,
+        baseY: HEIGHT - GROUND_H - 90,
+        color: "#2a3255",
+        spacing: 70,
+        maxH: 110,
+        minH: 55,
         seed: 1,
       });
-      // near city skyline (faster parallax)
-      drawSkyline(ctx, g.frame * 0.9, HEIGHT - 40, {
-        y: HEIGHT - 140,
+      drawSimpleSkyline(ctx, WIDTH, HEIGHT - GROUND_H, {
+        offset: g.frame * 0.9,
+        baseY: HEIGHT - GROUND_H - 30,
         color: "#141a33",
-        windowColor: "rgba(255, 220, 140, 0.75)",
-        spacing: 48,
-        maxH: 110,
-        minH: 45,
+        spacing: 90,
+        maxH: 100,
+        minH: 40,
         seed: 7,
       });
 
-
-
-      // always tick global frame for parallax and idle animation
       g.frame++;
       if (g.flap > 0) g.flap = Math.max(0, g.flap - 0.06);
 
@@ -159,11 +235,10 @@ function Game() {
         g.pipes.forEach((p) => (p.x -= PIPE_SPEED));
         g.pipes = g.pipes.filter((p) => p.x + PIPE_W > 0);
 
-        // collisions
         const kx = 80;
         const ky = g.y;
         const r = KOKI_SIZE / 2 - 6;
-        if (ky + r > HEIGHT - 40 || ky - r < 0) {
+        if (ky + r > HEIGHT - GROUND_H || ky - r < 0) {
           endGame();
         }
         for (const p of g.pipes) {
@@ -176,41 +251,39 @@ function Game() {
             p.passed = true;
             g.score++;
             setScore(g.score);
+            spawnStars(kx, ky);
             playMeow();
           }
         }
       } else {
-        // idle bob on menu / ready / over
         g.y = HEIGHT / 2 + Math.sin(g.frame * 0.08) * 12;
         g.rot = Math.sin(g.frame * 0.08) * 0.1;
       }
 
       // pipes
-      for (const p of gameRef.current.pipes) {
+      for (const p of g.pipes) {
         drawPipe(ctx, p.x, 0, PIPE_W, p.top, true);
-        drawPipe(ctx, p.x, p.top + GAP, PIPE_W, HEIGHT - 40 - (p.top + GAP), false);
+        drawPipe(ctx, p.x, p.top + GAP, PIPE_W, HEIGHT - GROUND_H - (p.top + GAP), false);
       }
 
-      // ground (asphalt street)
+      // ground
       ctx.fillStyle = "#2a2a30";
-      ctx.fillRect(0, HEIGHT - 40, WIDTH, 40);
+      ctx.fillRect(0, HEIGHT - GROUND_H, WIDTH, GROUND_H);
       ctx.fillStyle = "#f5d547";
       for (let i = 0; i < WIDTH; i += 30) {
         const off = (g.frame * PIPE_SPEED) % 30;
-        ctx.fillRect(i - off, HEIGHT - 22, 16, 4);
+        ctx.fillRect(i - off, HEIGHT - GROUND_H + 18, 16, 4);
       }
 
-      // koki with flap animation
+      // koki
       const img = imgRef.current;
       if (img && img.complete) {
-        // flap: strong scale bounce + extra upward tilt on jump; idle: gentle wing flutter
-        const flapPulse = g.flap; // 1 -> 0 after jump
+        const flapPulse = g.flap;
         const idleFlutter = Math.sin(g.frame * 0.35) * 0.06;
-        const scaleY = 1 + idleFlutter - flapPulse * 0.18; // squash on flap
-        const scaleX = 1 - idleFlutter + flapPulse * 0.15; // stretch wide
+        const scaleY = 1 + idleFlutter - flapPulse * 0.18;
+        const scaleX = 1 - idleFlutter + flapPulse * 0.15;
         const extraRot = -flapPulse * 0.35;
 
-        // motion blur trail on flap
         if (flapPulse > 0.2) {
           ctx.save();
           ctx.globalAlpha = flapPulse * 0.35;
@@ -229,14 +302,41 @@ function Game() {
         ctx.restore();
       }
 
+      // particles
+      for (const p of g.particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += p.kind === "puff" ? 0.05 : 0.12;
+        p.vx *= 0.96;
+        p.life--;
+        const t = p.life / p.maxLife;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, t);
+        if (p.kind === "puff") {
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size * t + 1, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          // star / sparkle
+          ctx.translate(p.x, p.y);
+          ctx.rotate(g.frame * 0.2 + p.x);
+          ctx.fillStyle = p.color;
+          const s = p.size * (0.6 + t * 0.8);
+          ctx.fillRect(-s, -1, s * 2, 2);
+          ctx.fillRect(-1, -s, 2, s * 2);
+        }
+        ctx.restore();
+      }
+      g.particles = g.particles.filter((p) => p.life > 0);
 
       // score
-      ctx.fillStyle = "#fff";
-      ctx.strokeStyle = "#333";
-      ctx.lineWidth = 4;
-      ctx.font = "bold 48px system-ui, sans-serif";
-      ctx.textAlign = "center";
       if (stateRef.current === "playing") {
+        ctx.fillStyle = "#fff";
+        ctx.strokeStyle = "#333";
+        ctx.lineWidth = 4;
+        ctx.font = "bold 48px system-ui, sans-serif";
+        ctx.textAlign = "center";
         ctx.strokeText(String(g.score), WIDTH / 2, 80);
         ctx.fillText(String(g.score), WIDTH / 2, 80);
       }
@@ -259,11 +359,15 @@ function Game() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  const goToMenu = () => {
+    reset();
+    setState("menu");
+  };
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gradient-to-b from-slate-900 via-indigo-900 to-orange-400 p-4">
+    <div className="fixed inset-0 overflow-hidden bg-slate-900">
       <div
-        className="relative cursor-pointer overflow-hidden rounded-2xl border-4 border-white shadow-2xl"
-        style={{ width: WIDTH, maxWidth: "100%" }}
+        className="relative h-full w-full cursor-pointer select-none"
         onPointerDown={(e) => {
           if (state === "menu") return;
           e.preventDefault();
@@ -272,18 +376,18 @@ function Game() {
       >
         <canvas
           ref={canvasRef}
-          width={WIDTH}
-          height={HEIGHT}
-          className="block h-auto w-full touch-none select-none"
+          width={size.w}
+          height={size.h}
+          className="block h-full w-full touch-none select-none"
         />
 
         {state === "menu" && (
           <Overlay>
-            <div className="flex flex-col items-center gap-6 px-6 text-center">
+            <div className="flex flex-col items-center gap-8 px-6 text-center">
               <img
                 src={kokiLogo}
                 alt="Estamos aqui con Koki"
-                className="w-full max-w-[340px] animate-[fade-in_0.5s_ease-out] drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
+                className="w-full max-w-[340px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
                 style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }}
               />
               <button
@@ -333,10 +437,10 @@ function Game() {
                   Reintentar
                 </button>
                 <button
+                  onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
-                    reset();
-                    setState("menu");
+                    goToMenu();
                   }}
                   className="rounded-lg bg-slate-200 px-4 py-2 font-bold text-slate-800 hover:bg-slate-300"
                 >
@@ -347,25 +451,20 @@ function Game() {
           </Overlay>
         )}
       </div>
-      {state !== "menu" && (
-        <p className="text-sm font-medium text-white/90 drop-shadow">
-          Toca / click / espacio para volar · Mejor: {best}
-        </p>
-      )}
       <style>{`
         @keyframes koki-logo-bob {
           0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
           50% { transform: translateY(-8px) rotate(1.5deg) scale(1.03); }
         }
+        html, body, #root { height: 100%; margin: 0; overscroll-behavior: none; }
       `}</style>
     </div>
   );
 }
 
-
 function Overlay({ children }: { children: React.ReactNode }) {
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+    <div className="absolute inset-0 flex items-center justify-center bg-black/25">
       {children}
     </div>
   );
@@ -388,68 +487,39 @@ function drawPipe(
   ctx.strokeStyle = "#1f2635";
   ctx.lineWidth = 3;
   ctx.strokeRect(x, y, w, h);
-  // cap
   const capH = 24;
   const capY = isTop ? y + h - capH : y;
   ctx.fillRect(x - 4, capY, w + 8, capH);
   ctx.strokeRect(x - 4, capY, w + 8, capH);
 }
 
-function drawSkyline(
+function drawSimpleSkyline(
   ctx: CanvasRenderingContext2D,
-  offset: number,
+  width: number,
   groundY: number,
   opts: {
-    y: number;
+    offset: number;
+    baseY: number;
     color: string;
-    windowColor: string;
     spacing: number;
     maxH: number;
     minH: number;
     seed: number;
   },
 ) {
-  const { y, color, windowColor, spacing, maxH, minH, seed } = opts;
-  const totalWidth = 400;
-  const buildingCount = Math.ceil(totalWidth / spacing) + 3;
+  const { offset, baseY, color, spacing, maxH, minH, seed } = opts;
+  const buildingCount = Math.ceil(width / spacing) + 3;
   const scrollLoop = spacing * buildingCount;
   const off = offset % scrollLoop;
 
   ctx.fillStyle = color;
   for (let i = 0; i < buildingCount; i++) {
-    // deterministic pseudo-random height
     const r = Math.sin((i + seed) * 12.9898) * 43758.5453;
     const rand = r - Math.floor(r);
     const h = minH + rand * (maxH - minH);
     const bx = i * spacing - off;
-    const bw = spacing - 6;
-    const by = y - h;
+    const bw = spacing - 8;
+    const by = baseY - h;
     ctx.fillRect(bx, by, bw, groundY - by);
-
-    // roof detail: antenna or water tank
-    const r2 = Math.sin((i + seed) * 78.233) * 43758.5453;
-    const rand2 = r2 - Math.floor(r2);
-    if (rand2 > 0.6) {
-      ctx.fillRect(bx + bw / 2 - 2, by - 12, 4, 12);
-    } else if (rand2 > 0.3) {
-      ctx.fillRect(bx + bw * 0.2, by - 8, bw * 0.3, 8);
-    }
-
-    // windows
-    ctx.fillStyle = windowColor;
-    const winW = 5;
-    const winH = 6;
-    const gapX = 10;
-    const gapY = 12;
-    for (let wy = by + 8; wy < groundY - 6; wy += gapY) {
-      for (let wx = bx + 6; wx < bx + bw - winW; wx += gapX) {
-        const rw = Math.sin((wx * 0.7 + wy * 1.3 + seed) * 12.9898) * 43758.5453;
-        const litRand = rw - Math.floor(rw);
-        if (litRand > 0.35) {
-          ctx.fillRect(wx, wy, winW, winH);
-        }
-      }
-    }
-    ctx.fillStyle = color;
   }
 }
