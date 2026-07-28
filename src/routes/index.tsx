@@ -257,16 +257,11 @@ function Game() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gradient-to-b from-slate-900 via-indigo-900 to-orange-400 p-4">
-      <h1 className="text-4xl font-black tracking-tight text-white drop-shadow-lg">
-        Flappy Koki 🐱
-      </h1>
-      <p className="text-sm font-medium text-white/90 drop-shadow">
-        Toca / click / espacio para volar
-      </p>
       <div
         className="relative cursor-pointer overflow-hidden rounded-2xl border-4 border-white shadow-2xl"
         style={{ width: WIDTH, maxWidth: "100%" }}
         onPointerDown={(e) => {
+          if (state === "menu") return;
           e.preventDefault();
           flap();
         }}
@@ -277,6 +272,33 @@ function Game() {
           height={HEIGHT}
           className="block h-auto w-full touch-none select-none"
         />
+
+        {state === "menu" && (
+          <Overlay>
+            <div className="flex flex-col items-center gap-6 px-6 text-center">
+              <img
+                src={kokiLogo}
+                alt="Estamos aqui con Koki"
+                className="w-full max-w-[340px] animate-[fade-in_0.5s_ease-out] drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
+                style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }}
+              />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startGame();
+                }}
+                className="rounded-full bg-gradient-to-b from-amber-300 to-orange-500 px-10 py-4 text-2xl font-black tracking-wide text-white shadow-[0_6px_0_rgb(154_52_18),0_10px_20px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:translate-y-1 active:shadow-[0_2px_0_rgb(154_52_18),0_4px_10px_rgba(0,0,0,0.4)]"
+                style={{ WebkitTextStroke: "1px rgba(0,0,0,0.3)" }}
+              >
+                ▶ JUGAR
+              </button>
+              <div className="text-xs font-semibold uppercase tracking-widest text-white/80">
+                Mejor: {best}
+              </div>
+            </div>
+          </Overlay>
+        )}
+
         {state === "ready" && (
           <Overlay>
             <div className="text-center">
@@ -285,6 +307,7 @@ function Game() {
             </div>
           </Overlay>
         )}
+
         {state === "over" && (
           <Overlay>
             <div className="rounded-xl bg-white/95 px-8 py-6 text-center shadow-xl">
@@ -295,19 +318,46 @@ function Game() {
               <div className="text-slate-700">
                 Mejor: <span className="font-bold">{best}</span>
               </div>
-              <div className="mt-4 rounded-lg bg-orange-500 px-4 py-2 font-bold text-white">
-                Toca para reintentar
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startGame();
+                  }}
+                  className="rounded-lg bg-orange-500 px-4 py-2 font-bold text-white hover:bg-orange-600"
+                >
+                  Reintentar
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    reset();
+                    setState("menu");
+                  }}
+                  className="rounded-lg bg-slate-200 px-4 py-2 font-bold text-slate-800 hover:bg-slate-300"
+                >
+                  Menú
+                </button>
               </div>
             </div>
           </Overlay>
         )}
       </div>
-      <div className="text-sm font-medium text-white/90 drop-shadow">
-        Mejor puntuación: <span className="font-bold">{best}</span>
-      </div>
+      {state !== "menu" && (
+        <p className="text-sm font-medium text-white/90 drop-shadow">
+          Toca / click / espacio para volar · Mejor: {best}
+        </p>
+      )}
+      <style>{`
+        @keyframes koki-logo-bob {
+          0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
+          50% { transform: translateY(-8px) rotate(1.5deg) scale(1.03); }
+        }
+      `}</style>
     </div>
   );
 }
+
 
 function Overlay({ children }: { children: React.ReactNode }) {
   return (
