@@ -6,7 +6,11 @@ import tazAsset from "@/assets/taz.png.asset.json";
 import gufiAsset from "@/assets/gufi.png.asset.json";
 import ratonAsset from "@/assets/raton.png.asset.json";
 import pastelitoImg from "@/assets/pastelito.png";
-import { playFlap, playMeow } from "@/lib/sounds";
+import {
+  playFlap, playMeow,
+  startMusic, setMusicVolume, setSfxVolume,
+  getMusicVolume, getSfxVolume,
+} from "@/lib/sounds";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -70,6 +74,16 @@ function Game() {
   const [state, setState] = useState<GameState>("menu");
   const [selectedId, setSelectedId] = useState<string>("koki");
   const [unlocked, setUnlocked] = useState<string[]>(["koki"]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [musicVol, setMusicVol] = useState(0.3);
+  const [sfxVol, setSfxVol] = useState(1);
+  const musicStartedRef = useRef(false);
+
+  const kickMusic = useCallback(() => {
+    if (musicStartedRef.current) return;
+    musicStartedRef.current = true;
+    startMusic();
+  }, []);
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -93,6 +107,8 @@ function Game() {
     setCoins(Number(localStorage.getItem("koki-coins") || 0));
     setUnlocked(loadUnlocked());
     setSelectedId(localStorage.getItem("koki-selected") || "koki");
+    setMusicVol(getMusicVolume());
+    setSfxVol(getSfxVolume());
 
     for (const c of CHARACTERS) {
       const img = new Image();
@@ -170,13 +186,14 @@ function Game() {
   };
 
   const startGame = useCallback(() => {
+    kickMusic();
     reset();
     setState("playing");
     gameRef.current.vy = JUMP;
     gameRef.current.flap = 1;
     spawnPuff(80, gameRef.current.y + 10);
     playFlap();
-  }, []);
+  }, [kickMusic]);
 
   const flap = useCallback(() => {
     const s = stateRef.current;
@@ -481,6 +498,12 @@ function Game() {
               >
                 🐾 PERSONAJES
               </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); kickMusic(); setShowSettings(true); }}
+                className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(6_78_59),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(6_78_59)]"
+              >
+                🔊 SONIDO
+              </button>
               <div className="text-xs font-semibold uppercase tracking-widest text-white/80">
                 Mejor: {best}
               </div>
@@ -594,6 +617,77 @@ function Game() {
                   🏠 MENÚ
                 </button>
               </div>
+            </div>
+          </Overlay>
+        )}
+
+        {(state === "playing" || state === "ready") && !showSettings && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); setShowSettings(true); }}
+            aria-label="Ajustes de sonido"
+            className="absolute top-3 left-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-xl text-white backdrop-blur active:scale-95"
+          >
+            🔊
+          </button>
+        )}
+
+        {showSettings && (
+          <Overlay>
+            <div
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm rounded-3xl bg-gradient-to-b from-slate-800 to-slate-900 p-6 shadow-2xl border-2 border-white/10"
+            >
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-2xl font-black text-white">Sonido</h2>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="h-9 w-9 rounded-full bg-white/15 text-white font-bold active:scale-95"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <label className="block mb-5">
+                <div className="flex items-center justify-between text-white font-bold mb-2">
+                  <span>🎵 Música</span>
+                  <span className="text-sm text-white/70">{Math.round(musicVol * 100)}%</span>
+                </div>
+                <input
+                  type="range" min={0} max={1} step={0.01} value={musicVol}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setMusicVol(v);
+                    setMusicVolume(v);
+                    kickMusic();
+                  }}
+                  className="w-full h-3 accent-emerald-400"
+                />
+              </label>
+
+              <label className="block mb-6">
+                <div className="flex items-center justify-between text-white font-bold mb-2">
+                  <span>🔔 Efectos</span>
+                  <span className="text-sm text-white/70">{Math.round(sfxVol * 100)}%</span>
+                </div>
+                <input
+                  type="range" min={0} max={1} step={0.01} value={sfxVol}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setSfxVol(v);
+                    setSfxVolume(v);
+                  }}
+                  className="w-full h-3 accent-pink-400"
+                />
+              </label>
+
+              <button
+                onClick={() => setShowSettings(false)}
+                className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 px-6 py-3 text-lg font-black text-white shadow-[0_4px_0_rgb(6_78_59)] active:translate-y-0.5"
+              >
+                Listo
+              </button>
             </div>
           </Overlay>
         )}
