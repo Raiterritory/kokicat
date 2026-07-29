@@ -107,6 +107,8 @@ function Game() {
     setCoins(Number(localStorage.getItem("koki-coins") || 0));
     setUnlocked(loadUnlocked());
     setSelectedId(localStorage.getItem("koki-selected") || "koki");
+    setMusicVol(getMusicVolume());
+    setSfxVol(getSfxVolume());
 
     for (const c of CHARACTERS) {
       const img = new Image();
