@@ -186,13 +186,14 @@ function Game() {
   };
 
   const startGame = useCallback(() => {
+    kickMusic();
     reset();
     setState("playing");
     gameRef.current.vy = JUMP;
     gameRef.current.flap = 1;
     spawnPuff(80, gameRef.current.y + 10);
     playFlap();
-  }, []);
+  }, [kickMusic]);
 
   const flap = useCallback(() => {
     const s = stateRef.current;
