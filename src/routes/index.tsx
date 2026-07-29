@@ -6,7 +6,11 @@ import tazAsset from "@/assets/taz.png.asset.json";
 import gufiAsset from "@/assets/gufi.png.asset.json";
 import ratonAsset from "@/assets/raton.png.asset.json";
 import pastelitoImg from "@/assets/pastelito.png";
-import { playFlap, playMeow } from "@/lib/sounds";
+import {
+  playFlap, playMeow,
+  startMusic, setMusicVolume, setSfxVolume,
+  getMusicVolume, getSfxVolume,
+} from "@/lib/sounds";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -70,6 +74,16 @@ function Game() {
   const [state, setState] = useState<GameState>("menu");
   const [selectedId, setSelectedId] = useState<string>("koki");
   const [unlocked, setUnlocked] = useState<string[]>(["koki"]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [musicVol, setMusicVol] = useState(0.3);
+  const [sfxVol, setSfxVol] = useState(1);
+  const musicStartedRef = useRef(false);
+
+  const kickMusic = useCallback(() => {
+    if (musicStartedRef.current) return;
+    musicStartedRef.current = true;
+    startMusic();
+  }, []);
 
   const stateRef = useRef(state);
   stateRef.current = state;
