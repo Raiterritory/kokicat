@@ -1,5 +1,67 @@
-// Simple WebAudio-generated sound effects for the Koki game.
+// Simple WebAudio-generated sound effects + background music for Koki.
+import bgmAsset from "@/assets/background-music.mp3.asset.json";
+
 let ctx: AudioContext | null = null;
+
+const LS_MUSIC = "koki-vol-music";
+const LS_SFX = "koki-vol-sfx";
+
+let musicVolume = 0.3;
+let sfxVolume = 1.0;
+
+function loadFromStorage() {
+  if (typeof window === "undefined") return;
+  const m = window.localStorage.getItem(LS_MUSIC);
+  const s = window.localStorage.getItem(LS_SFX);
+  if (m !== null) musicVolume = Math.max(0, Math.min(1, Number(m)));
+  if (s !== null) sfxVolume = Math.max(0, Math.min(1, Number(s)));
+}
+loadFromStorage();
+
+export function getMusicVolume() { return musicVolume; }
+export function getSfxVolume() { return sfxVolume; }
+
+let bgmEl: HTMLAudioElement | null = null;
+
+function ensureBgm(): HTMLAudioElement | null {
+  if (typeof window === "undefined") return null;
+  if (!bgmEl) {
+    bgmEl = new Audio(bgmAsset.url);
+    bgmEl.loop = true;
+    bgmEl.preload = "auto";
+    bgmEl.volume = musicVolume;
+  }
+  return bgmEl;
+}
+
+export function startMusic() {
+  const el = ensureBgm();
+  if (!el) return;
+  el.volume = musicVolume;
+  const p = el.play();
+  if (p && typeof p.catch === "function") p.catch(() => {});
+}
+
+export function stopMusic() {
+  if (bgmEl) {
+    bgmEl.pause();
+  }
+}
+
+export function setMusicVolume(v: number) {
+  musicVolume = Math.max(0, Math.min(1, v));
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(LS_MUSIC, String(musicVolume));
+  }
+  if (bgmEl) bgmEl.volume = musicVolume;
+}
+
+export function setSfxVolume(v: number) {
+  sfxVolume = Math.max(0, Math.min(1, v));
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(LS_SFX, String(sfxVolume));
+  }
+}
 
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -15,10 +77,9 @@ function getCtx(): AudioContext | null {
 /** Short whoosh/flap sound for the jump. */
 export function playFlap() {
   const ac = getCtx();
-  if (!ac) return;
+  if (!ac || sfxVolume <= 0) return;
   const now = ac.currentTime;
 
-  // Noise burst (whoosh)
   const bufferSize = Math.floor(ac.sampleRate * 0.18);
   const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
   const data = buffer.getChannelData(0);
@@ -35,8 +96,9 @@ export function playFlap() {
   bp.Q.value = 1.2;
 
   const gain = ac.createGain();
+  const peak = 0.35 * sfxVolume;
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.35, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), now + 0.02);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
 
   noise.connect(bp).connect(gain).connect(ac.destination);
@@ -47,13 +109,12 @@ export function playFlap() {
 /** Cat meow synthesized with a pitch-swept oscillator + formant filter. */
 export function playMeow() {
   const ac = getCtx();
-  if (!ac) return;
+  if (!ac || sfxVolume <= 0) return;
   const now = ac.currentTime;
   const dur = 0.45;
 
   const osc = ac.createOscillator();
   osc.type = "sawtooth";
-  // "mi-aaau" pitch contour
   osc.frequency.setValueAtTime(520, now);
   osc.frequency.linearRampToValueAtTime(780, now + 0.12);
   osc.frequency.linearRampToValueAtTime(560, now + 0.28);
@@ -67,9 +128,10 @@ export function playMeow() {
   formant.frequency.linearRampToValueAtTime(800, now + dur);
 
   const gain = ac.createGain();
+  const peak = 0.3 * sfxVolume;
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.3, now + 0.05);
-  gain.gain.setValueAtTime(0.3, now + 0.3);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), now + 0.05);
+  gain.gain.setValueAtTime(Math.max(0.0002, peak), now + 0.3);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
 
   osc.connect(formant).connect(gain).connect(ac.destination);
