@@ -498,6 +498,12 @@ function Game() {
               >
                 🐾 PERSONAJES
               </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); kickMusic(); setShowSettings(true); }}
+                className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(6_78_59),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(6_78_59)]"
+              >
+                🔊 SONIDO
+              </button>
               <div className="text-xs font-semibold uppercase tracking-widest text-white/80">
                 Mejor: {best}
               </div>
