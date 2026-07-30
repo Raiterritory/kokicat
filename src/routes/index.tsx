@@ -445,8 +445,9 @@ function Game() {
 
   const tryUnlock = (id: string) => {
     if (unlocked.includes(id)) { selectCharacter(id); return; }
-    if (coins < SKIN_PRICE) return;
-    const newCoins = coins - SKIN_PRICE;
+    const price = CHARACTERS.find((c) => c.id === id)?.price ?? 0;
+    if (coins < price) return;
+    const newCoins = coins - price;
     const newUnlocked = [...unlocked, id];
     setCoins(newCoins);
     setUnlocked(newUnlocked);
