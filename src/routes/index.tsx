@@ -100,6 +100,7 @@ function Game() {
     frame: 0, score: 0, rot: 0, flap: 0,
     runCoins: 0,
     particles: [] as Particle[],
+    trail: [] as { x: number; y: number }[],
   });
 
   useEffect(() => {
