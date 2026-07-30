@@ -6,22 +6,13 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-// STATIC_BUILD=1 -> build for the offline APK: prerender "/" into a static
-// index.html. The custom server entry is skipped in that mode because the
-// prerender preview server expects the default entry filename.
-const isStaticBuild = process.env.STATIC_BUILD === "1";
-
 export default defineConfig({
-  tanstackStart: isStaticBuild
-    ? {
-        prerender: { enabled: true, crawlLinks: false },
-        pages: [{ path: "/", prerender: { enabled: true } }],
-      }
-    : {
-        // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-        // nitro/vite builds from this
-        server: { entry: "server" },
-      },
+  tanstackStart: {
+    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
+    // nitro/vite builds from this
+    server: { entry: "server" },
+  },
 });
+
 
 
