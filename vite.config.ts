@@ -11,5 +11,12 @@ export default defineConfig({
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+    // Prerender the game route to a static index.html (needed for the offline APK build).
+    prerender: {
+      enabled: true,
+      crawlLinks: false,
+    },
+    pages: [{ path: "/", prerender: { enabled: true } }],
   },
 });
+
