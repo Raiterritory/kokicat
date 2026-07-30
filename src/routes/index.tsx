@@ -7,7 +7,7 @@ import gufiAsset from "@/assets/gufi.png.asset.json";
 import ratonAsset from "@/assets/raton.png.asset.json";
 import pastelitoImg from "@/assets/pastelito.png";
 import {
-  playFlap, playMeow,
+  playFlap, playMeow, playLogoSound,
   startMusic, setMusicVolume, setSfxVolume,
   getMusicVolume, getSfxVolume,
 } from "@/lib/sounds";
