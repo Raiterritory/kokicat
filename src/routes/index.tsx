@@ -261,7 +261,7 @@ function Game() {
         g.y += g.vy;
         g.rot = Math.max(-0.4, Math.min(1.2, g.vy * 0.08));
 
-        if (g.frame % 90 === 0) {
+        if (g.frame % PIPE_INTERVAL === 0) {
           const top = 60 + Math.random() * (HEIGHT - GAP - 180);
           g.pipes.push({ x: WIDTH, top, passed: false });
           // ~55% chance to spawn a coin between this pipe and the next
