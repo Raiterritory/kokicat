@@ -525,7 +525,7 @@ function Game() {
                 {CHARACTERS.map((c) => {
                   const isUnlocked = unlocked.includes(c.id);
                   const isSelected = selectedId === c.id;
-                  const canBuy = coins >= SKIN_PRICE;
+                  const canBuy = coins >= c.price;
                   return (
                     <button
                       key={c.id}
