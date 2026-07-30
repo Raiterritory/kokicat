@@ -76,8 +76,35 @@ async function main() {
   await cp(CLIENT_DIR, OUT_DIR, { recursive: true });
   await writeFile(join(OUT_DIR, "index.html"), html, "utf8");
 
+  await downloadUploadedAssets();
+
   console.log(`\n✔ Static build ready: dist-static/index.html`);
 }
+
+// Images / audio uploaded through Lovable are served from /__l5e/... at runtime.
+// For an offline APK they must live inside the bundle, so download them here.
+async function downloadUploadedAssets() {
+  const base = process.env.ASSET_BASE ?? "http://localhost:8080";
+  const dir = join(ROOT, "src", "assets");
+  if (!existsSync(dir)) return;
+
+  const files = (await readdir(dir)).filter((f) => f.endsWith(".asset.json"));
+  for (const file of files) {
+    const meta = JSON.parse(await readFile(join(dir, file), "utf8"));
+    if (!meta.url?.startsWith("/")) continue;
+    const res = await fetch(base + meta.url);
+    if (!res.ok) {
+      console.error(`Could not download ${meta.url} from ${base} (${res.status}).`);
+      console.error("Set ASSET_BASE to a running URL of the app and re-run.");
+      process.exit(1);
+    }
+    const target = join(OUT_DIR, ...meta.url.split("/").filter(Boolean));
+    await mkdir(join(target, ".."), { recursive: true });
+    await writeFile(target, Buffer.from(await res.arrayBuffer()));
+    console.log(`  ↓ ${meta.url}`);
+  }
+}
+
 
 main().catch((error) => {
   console.error(error);
