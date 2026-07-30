@@ -315,6 +315,36 @@ function Game() {
         g.rot = Math.sin(g.frame * 0.08) * 0.1;
       }
 
+      // --- Nyan-style rainbow trail following the character ---
+      g.trail.forEach((t) => (t.x -= PIPE_SPEED));
+      g.trail.push({ x: 80, y: g.y });
+      g.trail = g.trail.filter((t) => t.x > -30);
+      if (g.trail.length > 2) {
+        const bands = ["#ff2d2d", "#ff9a2d", "#ffe62d", "#3ddc4a", "#2d9bff", "#a44bff"];
+        const bandH = 6;
+        const total = bands.length * bandH;
+        ctx.save();
+        ctx.lineCap = "butt";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = bandH;
+        bands.forEach((color, bi) => {
+          const off = -total / 2 + bandH / 2 + bi * bandH;
+          ctx.strokeStyle = color;
+          ctx.beginPath();
+          g.trail.forEach((t, i) => {
+            const step = Math.round((t.x + g.frame * PIPE_SPEED) / 14) % 2;
+            const wob = step === 0 ? -3 : 3;
+            const y = t.y + off + wob;
+            if (i === 0) ctx.moveTo(t.x, y);
+            else ctx.lineTo(t.x, y);
+          });
+          ctx.stroke();
+        });
+        ctx.restore();
+      }
+
+
+
       for (const p of g.pipes) {
         drawPipe(ctx, p.x, 0, PIPE_W, p.top, true);
         drawPipe(ctx, p.x, p.top + GAP, PIPE_W, HEIGHT - GROUND_H - (p.top + GAP), false);
