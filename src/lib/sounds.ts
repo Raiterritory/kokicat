@@ -1,5 +1,6 @@
 // Simple WebAudio-generated sound effects + background music for Koki.
 import bgmAsset from "@/assets/background-music.mp3.asset.json";
+import logoAsset from "@/assets/logo-sound.mp3.asset.json";
 
 let ctx: AudioContext | null = null;
 
@@ -140,7 +141,6 @@ export function playMeow() {
 }
 
 // --- Logo sound (menu) ---
-import logoAsset from "@/assets/logo-sound.mp3.asset.json";
 
 let logoEl: HTMLAudioElement | null = null;
 
