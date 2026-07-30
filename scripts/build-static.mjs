@@ -8,7 +8,7 @@
 // The result is a plain folder with index.html + assets, ready to be wrapped
 // with Capacitor / PWABuilder into an offline APK.
 import { spawnSync } from "node:child_process";
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
