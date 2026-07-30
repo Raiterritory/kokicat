@@ -511,7 +511,8 @@ function Game() {
               <img
                 src={menuLogo.url}
                 alt="Estamos aqui con Koki"
-                className="w-full max-w-[320px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
+                onClick={(e) => { e.stopPropagation(); playLogoSound(); }}
+                className="w-full max-w-[320px] cursor-pointer select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform active:scale-95"
                 style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }}
               />
               <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5 text-white font-bold text-sm backdrop-blur">
