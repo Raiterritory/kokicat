@@ -24,15 +24,15 @@ export const Route = createFileRoute("/")({
   component: Game,
 });
 
-const GRAVITY = 0.5;
-const JUMP = -8.5;
+const GRAVITY = 0.34;
+const JUMP = -7;
 const PIPE_W = 70;
-const GAP = 190;
+const GAP = 205;
 const PIPE_SPEED = 2.5;
+const PIPE_INTERVAL = 130; // frames between pipes (mayor = tubos mas separados)
 const KOKI_SIZE = 64;
 const GROUND_H = 40;
 const COIN_SIZE = 36;
-const SKIN_PRICE = 50;
 
 type Pipe = { x: number; top: number; passed: boolean };
 type Coin = { x: number; y: number; taken: boolean; bob: number };
