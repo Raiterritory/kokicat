@@ -7,7 +7,7 @@ import gufiAsset from "@/assets/gufi.png.asset.json";
 import ratonAsset from "@/assets/raton.png.asset.json";
 import pastelitoImg from "@/assets/pastelito.png";
 import {
-  playFlap, playMeow,
+  playFlap, playMeow, playLogoSound,
   startMusic, setMusicVolume, setSfxVolume,
   getMusicVolume, getSfxVolume,
 } from "@/lib/sounds";
@@ -24,15 +24,15 @@ export const Route = createFileRoute("/")({
   component: Game,
 });
 
-const GRAVITY = 0.5;
-const JUMP = -8.5;
+const GRAVITY = 0.34;
+const JUMP = -7;
 const PIPE_W = 70;
-const GAP = 190;
+const GAP = 205;
 const PIPE_SPEED = 2.5;
+const PIPE_INTERVAL = 130; // frames between pipes (mayor = tubos mas separados)
 const KOKI_SIZE = 64;
 const GROUND_H = 40;
 const COIN_SIZE = 36;
-const SKIN_PRICE = 50;
 
 type Pipe = { x: number; top: number; passed: boolean };
 type Coin = { x: number; y: number; taken: boolean; bob: number };
@@ -52,9 +52,9 @@ type Character = {
 
 const CHARACTERS: Character[] = [
   { id: "koki", name: "Koki", url: kokiAsset.url, price: 0 },
-  { id: "taz", name: "Taz", url: tazAsset.url, price: SKIN_PRICE },
-  { id: "gufi", name: "Gufi", url: gufiAsset.url, price: SKIN_PRICE },
-  { id: "raton", name: "Ratón", url: ratonAsset.url, price: SKIN_PRICE },
+  { id: "taz", name: "Taz", url: tazAsset.url, price: 60 },
+  { id: "gufi", name: "Gufi", url: gufiAsset.url, price: 60 },
+  { id: "raton", name: "Ratón", url: ratonAsset.url, price: 120 },
 ];
 
 function loadUnlocked(): string[] {
@@ -100,6 +100,7 @@ function Game() {
     frame: 0, score: 0, rot: 0, flap: 0,
     runCoins: 0,
     particles: [] as Particle[],
+    trail: [] as { x: number; y: number }[],
   });
 
   useEffect(() => {
@@ -140,7 +141,7 @@ function Game() {
     gameRef.current = {
       y: h / 2, vy: 0, pipes: [], coins: [],
       frame: 0, score: 0, rot: 0, flap: 0, runCoins: 0,
-      particles: [],
+      particles: [], trail: [],
     };
     setScore(0);
   };
@@ -261,7 +262,7 @@ function Game() {
         g.y += g.vy;
         g.rot = Math.max(-0.4, Math.min(1.2, g.vy * 0.08));
 
-        if (g.frame % 90 === 0) {
+        if (g.frame % PIPE_INTERVAL === 0) {
           const top = 60 + Math.random() * (HEIGHT - GAP - 180);
           g.pipes.push({ x: WIDTH, top, passed: false });
           // ~55% chance to spawn a coin between this pipe and the next
@@ -313,6 +314,36 @@ function Game() {
         g.y = HEIGHT / 2 + Math.sin(g.frame * 0.08) * 12;
         g.rot = Math.sin(g.frame * 0.08) * 0.1;
       }
+
+      // --- Nyan-style rainbow trail following the character ---
+      g.trail.forEach((t) => (t.x -= PIPE_SPEED));
+      g.trail.push({ x: 80, y: g.y });
+      g.trail = g.trail.filter((t) => t.x > -30);
+      if (g.trail.length > 2) {
+        const bands = ["#ff2d2d", "#ff9a2d", "#ffe62d", "#3ddc4a", "#2d9bff", "#a44bff"];
+        const bandH = 6;
+        const total = bands.length * bandH;
+        ctx.save();
+        ctx.lineCap = "butt";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = bandH;
+        bands.forEach((color, bi) => {
+          const off = -total / 2 + bandH / 2 + bi * bandH;
+          ctx.strokeStyle = color;
+          ctx.beginPath();
+          g.trail.forEach((t, i) => {
+            const step = Math.round((t.x + g.frame * PIPE_SPEED) / 14) % 2;
+            const wob = step === 0 ? -3 : 3;
+            const y = t.y + off + wob;
+            if (i === 0) ctx.moveTo(t.x, y);
+            else ctx.lineTo(t.x, y);
+          });
+          ctx.stroke();
+        });
+        ctx.restore();
+      }
+
+
 
       for (const p of g.pipes) {
         drawPipe(ctx, p.x, 0, PIPE_W, p.top, true);
@@ -445,8 +476,9 @@ function Game() {
 
   const tryUnlock = (id: string) => {
     if (unlocked.includes(id)) { selectCharacter(id); return; }
-    if (coins < SKIN_PRICE) return;
-    const newCoins = coins - SKIN_PRICE;
+    const price = CHARACTERS.find((c) => c.id === id)?.price ?? 0;
+    if (coins < price) return;
+    const newCoins = coins - price;
     const newUnlocked = [...unlocked, id];
     setCoins(newCoins);
     setUnlocked(newUnlocked);
@@ -479,7 +511,8 @@ function Game() {
               <img
                 src={menuLogo.url}
                 alt="Estamos aqui con Koki"
-                className="w-full max-w-[320px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
+                onClick={(e) => { e.stopPropagation(); playLogoSound(); }}
+                className="w-full max-w-[320px] cursor-pointer select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform active:scale-95"
                 style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }}
               />
               <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5 text-white font-bold text-sm backdrop-blur">
@@ -524,7 +557,7 @@ function Game() {
                 {CHARACTERS.map((c) => {
                   const isUnlocked = unlocked.includes(c.id);
                   const isSelected = selectedId === c.id;
-                  const canBuy = coins >= SKIN_PRICE;
+                  const canBuy = coins >= c.price;
                   return (
                     <button
                       key={c.id}

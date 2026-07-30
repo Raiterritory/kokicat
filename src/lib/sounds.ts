@@ -1,5 +1,6 @@
 // Simple WebAudio-generated sound effects + background music for Koki.
 import bgmAsset from "@/assets/background-music.mp3.asset.json";
+import logoAsset from "@/assets/logo-sound.mp3.asset.json";
 
 let ctx: AudioContext | null = null;
 
@@ -137,4 +138,21 @@ export function playMeow() {
   osc.connect(formant).connect(gain).connect(ac.destination);
   osc.start(now);
   osc.stop(now + dur + 0.02);
+}
+
+// --- Logo sound (menu) ---
+
+let logoEl: HTMLAudioElement | null = null;
+
+/** Plays the uploaded Koki jingle when tapping the menu logo. */
+export function playLogoSound() {
+  if (typeof window === "undefined" || sfxVolume <= 0) return;
+  if (!logoEl) {
+    logoEl = new Audio(logoAsset.url);
+    logoEl.preload = "auto";
+  }
+  logoEl.currentTime = 0;
+  logoEl.volume = sfxVolume;
+  const p = logoEl.play();
+  if (p && typeof p.catch === "function") p.catch(() => {});
 }
