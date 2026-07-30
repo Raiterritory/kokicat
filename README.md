@@ -1,18 +1,14 @@
-# Koki's Flying Cat
-
-quiero hacer un juego tipo flappy bird donde el mono que salte en el aire sea mi gato koki
+# Welcome to your Lovable project
 
 This project was built with [Lovable](https://lovable.dev).
 
-**Live app**: https://koki-cat-flap.lovable.app
-
 ## Build with Lovable
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/1fb0e812-f944-48f1-a233-317a394e5d06).
+Open your project in the [Lovable editor](https://lovable.dev) and keep building.
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
+- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 
@@ -23,4 +19,28 @@ git clone <this-repository-url>
 cd <repository-name>
 npm i
 npm run dev
+```
+
+## Built with
+
+- TanStack Start
+- TypeScript
+- React
+- Tailwind CSS
+
+## Build estático para APK offline
+
+```bash
+bun run build:static
+```
+
+Genera `dist-static/` con `index.html` + todos los assets (imágenes y música
+descargadas dentro del bundle). Esa carpeta funciona sin servidor ni internet
+y es la que se empaqueta con Capacitor (`webDir: "dist-static"`) o PWABuilder
+para producir el APK.
+
+Si el dev server no está corriendo, indica de dónde bajar los assets:
+
+```bash
+ASSET_BASE=https://koki-cat-flap.lovable.app bun run build:static
 ```
