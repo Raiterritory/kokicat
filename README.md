@@ -27,3 +27,20 @@ npm run dev
 - TypeScript
 - React
 - Tailwind CSS
+
+## Build estático para APK offline
+
+```bash
+bun run build:static
+```
+
+Genera `dist-static/` con `index.html` + todos los assets (imágenes y música
+descargadas dentro del bundle). Esa carpeta funciona sin servidor ni internet
+y es la que se empaqueta con Capacitor (`webDir: "dist-static"`) o PWABuilder
+para producir el APK.
+
+Si el dev server no está corriendo, indica de dónde bajar los assets:
+
+```bash
+ASSET_BASE=https://koki-cat-flap.lovable.app bun run build:static
+```
