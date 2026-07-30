@@ -52,9 +52,9 @@ type Character = {
 
 const CHARACTERS: Character[] = [
   { id: "koki", name: "Koki", url: kokiAsset.url, price: 0 },
-  { id: "taz", name: "Taz", url: tazAsset.url, price: SKIN_PRICE },
-  { id: "gufi", name: "Gufi", url: gufiAsset.url, price: SKIN_PRICE },
-  { id: "raton", name: "Ratón", url: ratonAsset.url, price: SKIN_PRICE },
+  { id: "taz", name: "Taz", url: tazAsset.url, price: 60 },
+  { id: "gufi", name: "Gufi", url: gufiAsset.url, price: 60 },
+  { id: "raton", name: "Ratón", url: ratonAsset.url, price: 120 },
 ];
 
 function loadUnlocked(): string[] {
