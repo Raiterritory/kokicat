@@ -527,7 +527,19 @@ function Game() {
         const label = `🧁 ${g.runCoins}`;
         ctx.strokeText(label, WIDTH - 16, 40);
         ctx.fillText(label, WIDTH - 16, 40);
+
+        if (g.magnet > 0) {
+          ctx.textAlign = "center";
+          ctx.font = "bold 18px system-ui, sans-serif";
+          const secs = (g.magnet / 60).toFixed(1);
+          const mag = `✨ IMÁN ${secs}s`;
+          ctx.strokeText(mag, WIDTH / 2, 112);
+          ctx.fillStyle = "#ffd45e";
+          ctx.fillText(mag, WIDTH / 2, 112);
+          ctx.fillStyle = "#fff";
+        }
       }
+
 
       raf = requestAnimationFrame(draw);
     };
