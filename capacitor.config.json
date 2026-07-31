@@ -1,0 +1,12 @@
+{
+  "appId": "app.kokicat.game",
+  "appName": "KokiCat",
+  "webDir": "dist-static",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

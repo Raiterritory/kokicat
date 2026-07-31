@@ -15,33 +15,41 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Estamos Aqui con Koki - El juego del gato volador" },
-      { name: "description", content: "Ayuda a Koki, el gato volador, a esquivar edificios en este divertido juego estilo Flappy Bird." },
-      { property: "og:title", content: "Estamos Aqui con Koki" },
-      { property: "og:description", content: "El juego del gato volador Koki" },
+      { title: "KokiCat - Estamos Aquí con Koki" },
+      { name: "description", content: "KokiCat: ayuda a Koki, el gato volador, a esquivar edificios, juntar pastelitos y atrapar al Koki dorado." },
+      { property: "og:title", content: "KokiCat - Estamos Aquí con Koki" },
+      { property: "og:description", content: "El juego del gato volador KokiCat: esquiva edificios y junta pastelitos." },
     ],
   }),
   component: Game,
 });
+
 
 const GRAVITY = 0.34;
 const JUMP = -7;
 const PIPE_W = 70;
 const GAP = 205;
 const PIPE_SPEED = 2.5;
-const PIPE_INTERVAL = 130; // frames between pipes (mayor = tubos mas separados)
+const PIPE_INTERVAL = 112; // frames between pipes (mayor = tubos mas separados)
 const KOKI_SIZE = 64;
 const GROUND_H = 40;
 const COIN_SIZE = 36;
+const GOLDEN_SIZE = 54;
+const GOLDEN_CHANCE = 0.07; // raro: ~7% por tubo
+const GOLDEN_MIN_GAP = 6; // minimo de tubos entre dos Kokis dorados
+const MAGNET_FRAMES = 360; // 6 segundos a 60fps
+const MAGNET_RADIUS = 240;
 
 type Pipe = { x: number; top: number; passed: boolean };
 type Coin = { x: number; y: number; taken: boolean; bob: number };
+type Golden = { x: number; y: number; taken: boolean; bob: number };
 type Particle = {
   x: number; y: number; vx: number; vy: number;
   life: number; maxLife: number; size: number; color: string;
   kind: "puff" | "star" | "coin";
 };
 type GameState = "menu" | "characters" | "ready" | "playing" | "over";
+
 
 type Character = {
   id: string;
@@ -101,6 +109,10 @@ function Game() {
     runCoins: 0,
     particles: [] as Particle[],
     trail: [] as { x: number; y: number }[],
+    goldens: [] as Golden[],
+    magnet: 0,
+    sinceGolden: 0,
+
   });
 
   useEffect(() => {
@@ -141,7 +153,7 @@ function Game() {
     gameRef.current = {
       y: h / 2, vy: 0, pipes: [], coins: [],
       frame: 0, score: 0, rot: 0, flap: 0, runCoins: 0,
-      particles: [], trail: [],
+      particles: [], trail: [], goldens: [], magnet: 0, sinceGolden: 0,
     };
     setScore(0);
   };
@@ -265,6 +277,7 @@ function Game() {
         if (g.frame % PIPE_INTERVAL === 0) {
           const top = 60 + Math.random() * (HEIGHT - GAP - 180);
           g.pipes.push({ x: WIDTH, top, passed: false });
+          g.sinceGolden++;
           // ~55% chance to spawn a coin between this pipe and the next
           if (Math.random() < 0.55) {
             const gapCenter = top + GAP / 2;
@@ -276,11 +289,23 @@ function Game() {
               bob: Math.random() * Math.PI * 2,
             });
           }
+          // Koki dorado: raro, y nunca dos seguidos
+          if (g.sinceGolden >= GOLDEN_MIN_GAP && Math.random() < GOLDEN_CHANCE) {
+            g.sinceGolden = 0;
+            g.goldens.push({
+              x: WIDTH + PIPE_W / 2 + 120,
+              y: top + GAP / 2 + (Math.random() - 0.5) * (GAP - 90),
+              taken: false,
+              bob: Math.random() * Math.PI * 2,
+            });
+          }
         }
         g.pipes.forEach((p) => (p.x -= PIPE_SPEED));
         g.pipes = g.pipes.filter((p) => p.x + PIPE_W > 0);
         g.coins.forEach((c) => { c.x -= PIPE_SPEED; c.bob += 0.1; });
         g.coins = g.coins.filter((c) => c.x + COIN_SIZE > 0 && !c.taken);
+        g.goldens.forEach((gd) => { gd.x -= PIPE_SPEED; gd.bob += 0.09; });
+        g.goldens = g.goldens.filter((gd) => gd.x + GOLDEN_SIZE > 0 && !gd.taken);
 
         const kx = 80;
         const ky = g.y;
@@ -298,11 +323,35 @@ function Game() {
             playMeow();
           }
         }
-        // coin pickup
+        // Koki dorado pickup -> poder de absorcion
+        for (const gd of g.goldens) {
+          if (gd.taken) continue;
+          const dx = gd.x - kx;
+          const dy = gd.y - ky;
+          if (dx * dx + dy * dy < (r + GOLDEN_SIZE / 2) * (r + GOLDEN_SIZE / 2)) {
+            gd.taken = true;
+            g.magnet = MAGNET_FRAMES;
+            spawnStars(gd.x, gd.y);
+            spawnStars(gd.x, gd.y);
+            playMeow();
+          }
+        }
+        if (g.magnet > 0) g.magnet--;
+        // coin pickup (+ atraccion mientras el poder este activo)
         for (const c of g.coins) {
           if (c.taken) continue;
-          const dx = c.x - kx;
-          const dy = c.y - ky;
+          let dx = c.x - kx;
+          let dy = c.y - ky;
+          if (g.magnet > 0) {
+            const dist = Math.hypot(dx, dy) || 1;
+            if (dist < MAGNET_RADIUS) {
+              const pull = 3 + (1 - dist / MAGNET_RADIUS) * 7;
+              c.x -= (dx / dist) * pull;
+              c.y -= (dy / dist) * pull;
+              dx = c.x - kx;
+              dy = c.y - ky;
+            }
+          }
           if (dx * dx + dy * dy < (r + COIN_SIZE / 2) * (r + COIN_SIZE / 2)) {
             c.taken = true;
             g.runCoins++;
@@ -310,6 +359,7 @@ function Game() {
             playFlap();
           }
         }
+
       } else {
         g.y = HEIGHT / 2 + Math.sin(g.frame * 0.08) * 12;
         g.rot = Math.sin(g.frame * 0.08) * 0.1;
@@ -364,6 +414,44 @@ function Game() {
           ctx.restore();
         }
       }
+
+      // Koki dorado
+      const goldImg = imgCacheRef.current["koki"];
+      for (const gd of g.goldens) {
+        if (gd.taken) continue;
+        const yy = gd.y + Math.sin(gd.bob) * 5;
+        ctx.save();
+        ctx.translate(gd.x, yy);
+        const pulse = 1 + Math.sin(gd.bob * 2) * 0.06;
+        ctx.scale(pulse, pulse);
+        const halo = ctx.createRadialGradient(0, 0, 4, 0, 0, GOLDEN_SIZE);
+        halo.addColorStop(0, "rgba(255,225,120,0.85)");
+        halo.addColorStop(1, "rgba(255,200,60,0)");
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(0, 0, GOLDEN_SIZE, 0, Math.PI * 2);
+        ctx.fill();
+        if (goldImg && goldImg.complete) {
+          ctx.filter = "sepia(1) saturate(6) hue-rotate(-15deg) brightness(1.15)";
+          ctx.drawImage(goldImg, -GOLDEN_SIZE / 2, -GOLDEN_SIZE / 2, GOLDEN_SIZE, GOLDEN_SIZE);
+          ctx.filter = "none";
+        }
+        ctx.restore();
+      }
+
+      // aura de absorcion
+      if (g.magnet > 0) {
+        const t = g.magnet / MAGNET_FRAMES;
+        ctx.save();
+        ctx.globalAlpha = 0.25 + Math.sin(g.frame * 0.25) * 0.1;
+        ctx.strokeStyle = "#ffd45e";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(80, g.y, MAGNET_RADIUS * (0.75 + t * 0.25), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
 
       ctx.fillStyle = "#2a2a30";
       ctx.fillRect(0, HEIGHT - GROUND_H, WIDTH, GROUND_H);
@@ -440,7 +528,19 @@ function Game() {
         const label = `🧁 ${g.runCoins}`;
         ctx.strokeText(label, WIDTH - 16, 40);
         ctx.fillText(label, WIDTH - 16, 40);
+
+        if (g.magnet > 0) {
+          ctx.textAlign = "center";
+          ctx.font = "bold 18px system-ui, sans-serif";
+          const secs = (g.magnet / 60).toFixed(1);
+          const mag = `✨ IMÁN ${secs}s`;
+          ctx.strokeText(mag, WIDTH / 2, 112);
+          ctx.fillStyle = "#ffd45e";
+          ctx.fillText(mag, WIDTH / 2, 112);
+          ctx.fillStyle = "#fff";
+        }
       }
+
 
       raf = requestAnimationFrame(draw);
     };

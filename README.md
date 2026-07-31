@@ -1,4 +1,4 @@
-# Welcome to your Lovable project
+# KokiCat
 
 This project was built with [Lovable](https://lovable.dev).
 
@@ -42,5 +42,18 @@ para producir el APK.
 Si el dev server no está corriendo, indica de dónde bajar los assets:
 
 ```bash
-ASSET_BASE=https://koki-cat-flap.lovable.app bun run build:static
+ASSET_BASE=https://kokicat.lovable.app bun run build:static
 ```
+
+## APK con Capacitor
+
+`capacitor.config.json` ya apunta a `dist-static` con el id `app.kokicat.game`:
+
+```bash
+bun run build:static
+npx cap add android      # solo la primera vez
+npx cap sync android
+npx cap open android     # Build > Build APK en Android Studio
+```
+
+El bundle no hace ninguna petición externa: funciona 100% offline.
