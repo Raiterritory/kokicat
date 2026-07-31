@@ -1,4 +1,4 @@
-# Welcome to your Lovable project
+# KokiCat
 
 This project was built with [Lovable](https://lovable.dev).
 
@@ -42,5 +42,5 @@ para producir el APK.
 Si el dev server no está corriendo, indica de dónde bajar los assets:
 
 ```bash
-ASSET_BASE=https://koki-cat-flap.lovable.app bun run build:static
+ASSET_BASE=https://kokicat.lovable.app bun run build:static
 ```
