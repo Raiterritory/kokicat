@@ -76,16 +76,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" },
+      { title: "KokiCat" },
+      { name: "description", content: "KokiCat, el juego del gato volador." },
+      { name: "author", content: "KokiCat" },
+      { name: "apple-mobile-web-app-title", content: "KokiCat" },
+      { name: "theme-color", content: "#1a2947" },
+      { property: "og:site_name", content: "KokiCat" },
+      { property: "og:title", content: "KokiCat" },
+      { property: "og:description", content: "KokiCat, el juego del gato volador." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
+
     links: [
       {
         rel: "stylesheet",

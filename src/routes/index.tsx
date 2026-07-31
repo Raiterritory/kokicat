@@ -15,14 +15,15 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Estamos Aqui con Koki - El juego del gato volador" },
-      { name: "description", content: "Ayuda a Koki, el gato volador, a esquivar edificios en este divertido juego estilo Flappy Bird." },
-      { property: "og:title", content: "Estamos Aqui con Koki" },
-      { property: "og:description", content: "El juego del gato volador Koki" },
+      { title: "KokiCat - Estamos Aquí con Koki" },
+      { name: "description", content: "KokiCat: ayuda a Koki, el gato volador, a esquivar edificios, juntar pastelitos y atrapar al Koki dorado." },
+      { property: "og:title", content: "KokiCat - Estamos Aquí con Koki" },
+      { property: "og:description", content: "El juego del gato volador KokiCat: esquiva edificios y junta pastelitos." },
     ],
   }),
   component: Game,
 });
+
 
 const GRAVITY = 0.34;
 const JUMP = -7;
