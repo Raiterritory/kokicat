@@ -108,6 +108,10 @@ function Game() {
     runCoins: 0,
     particles: [] as Particle[],
     trail: [] as { x: number; y: number }[],
+    goldens: [] as Golden[],
+    magnet: 0,
+    sinceGolden: 0,
+
   });
 
   useEffect(() => {
