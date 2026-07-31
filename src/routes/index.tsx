@@ -29,19 +29,26 @@ const JUMP = -7;
 const PIPE_W = 70;
 const GAP = 205;
 const PIPE_SPEED = 2.5;
-const PIPE_INTERVAL = 130; // frames between pipes (mayor = tubos mas separados)
+const PIPE_INTERVAL = 112; // frames between pipes (mayor = tubos mas separados)
 const KOKI_SIZE = 64;
 const GROUND_H = 40;
 const COIN_SIZE = 36;
+const GOLDEN_SIZE = 54;
+const GOLDEN_CHANCE = 0.07; // raro: ~7% por tubo
+const GOLDEN_MIN_GAP = 6; // minimo de tubos entre dos Kokis dorados
+const MAGNET_FRAMES = 360; // 6 segundos a 60fps
+const MAGNET_RADIUS = 240;
 
 type Pipe = { x: number; top: number; passed: boolean };
 type Coin = { x: number; y: number; taken: boolean; bob: number };
+type Golden = { x: number; y: number; taken: boolean; bob: number };
 type Particle = {
   x: number; y: number; vx: number; vy: number;
   life: number; maxLife: number; size: number; color: string;
   kind: "puff" | "star" | "coin";
 };
 type GameState = "menu" | "characters" | "ready" | "playing" | "over";
+
 
 type Character = {
   id: string;
