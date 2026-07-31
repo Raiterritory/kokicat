@@ -152,7 +152,7 @@ function Game() {
     gameRef.current = {
       y: h / 2, vy: 0, pipes: [], coins: [],
       frame: 0, score: 0, rot: 0, flap: 0, runCoins: 0,
-      particles: [], trail: [],
+      particles: [], trail: [], goldens: [], magnet: 0, sinceGolden: 0,
     };
     setScore(0);
   };
