@@ -276,6 +276,7 @@ function Game() {
         if (g.frame % PIPE_INTERVAL === 0) {
           const top = 60 + Math.random() * (HEIGHT - GAP - 180);
           g.pipes.push({ x: WIDTH, top, passed: false });
+          g.sinceGolden++;
           // ~55% chance to spawn a coin between this pipe and the next
           if (Math.random() < 0.55) {
             const gapCenter = top + GAP / 2;
@@ -287,11 +288,23 @@ function Game() {
               bob: Math.random() * Math.PI * 2,
             });
           }
+          // Koki dorado: raro, y nunca dos seguidos
+          if (g.sinceGolden >= GOLDEN_MIN_GAP && Math.random() < GOLDEN_CHANCE) {
+            g.sinceGolden = 0;
+            g.goldens.push({
+              x: WIDTH + PIPE_W / 2 + 120,
+              y: top + GAP / 2 + (Math.random() - 0.5) * (GAP - 90),
+              taken: false,
+              bob: Math.random() * Math.PI * 2,
+            });
+          }
         }
         g.pipes.forEach((p) => (p.x -= PIPE_SPEED));
         g.pipes = g.pipes.filter((p) => p.x + PIPE_W > 0);
         g.coins.forEach((c) => { c.x -= PIPE_SPEED; c.bob += 0.1; });
         g.coins = g.coins.filter((c) => c.x + COIN_SIZE > 0 && !c.taken);
+        g.goldens.forEach((gd) => { gd.x -= PIPE_SPEED; gd.bob += 0.09; });
+        g.goldens = g.goldens.filter((gd) => gd.x + GOLDEN_SIZE > 0 && !gd.taken);
 
         const kx = 80;
         const ky = g.y;
@@ -309,11 +322,35 @@ function Game() {
             playMeow();
           }
         }
-        // coin pickup
+        // Koki dorado pickup -> poder de absorcion
+        for (const gd of g.goldens) {
+          if (gd.taken) continue;
+          const dx = gd.x - kx;
+          const dy = gd.y - ky;
+          if (dx * dx + dy * dy < (r + GOLDEN_SIZE / 2) * (r + GOLDEN_SIZE / 2)) {
+            gd.taken = true;
+            g.magnet = MAGNET_FRAMES;
+            spawnStars(gd.x, gd.y);
+            spawnStars(gd.x, gd.y);
+            playMeow();
+          }
+        }
+        if (g.magnet > 0) g.magnet--;
+        // coin pickup (+ atraccion mientras el poder este activo)
         for (const c of g.coins) {
           if (c.taken) continue;
-          const dx = c.x - kx;
-          const dy = c.y - ky;
+          let dx = c.x - kx;
+          let dy = c.y - ky;
+          if (g.magnet > 0) {
+            const dist = Math.hypot(dx, dy) || 1;
+            if (dist < MAGNET_RADIUS) {
+              const pull = 3 + (1 - dist / MAGNET_RADIUS) * 7;
+              c.x -= (dx / dist) * pull;
+              c.y -= (dy / dist) * pull;
+              dx = c.x - kx;
+              dy = c.y - ky;
+            }
+          }
           if (dx * dx + dy * dy < (r + COIN_SIZE / 2) * (r + COIN_SIZE / 2)) {
             c.taken = true;
             g.runCoins++;
@@ -321,6 +358,7 @@ function Game() {
             playFlap();
           }
         }
+
       } else {
         g.y = HEIGHT / 2 + Math.sin(g.frame * 0.08) * 12;
         g.rot = Math.sin(g.frame * 0.08) * 0.1;
