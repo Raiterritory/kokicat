@@ -414,6 +414,44 @@ function Game() {
         }
       }
 
+      // Koki dorado
+      const goldImg = imgCacheRef.current["koki"];
+      for (const gd of g.goldens) {
+        if (gd.taken) continue;
+        const yy = gd.y + Math.sin(gd.bob) * 5;
+        ctx.save();
+        ctx.translate(gd.x, yy);
+        const pulse = 1 + Math.sin(gd.bob * 2) * 0.06;
+        ctx.scale(pulse, pulse);
+        const halo = ctx.createRadialGradient(0, 0, 4, 0, 0, GOLDEN_SIZE);
+        halo.addColorStop(0, "rgba(255,225,120,0.85)");
+        halo.addColorStop(1, "rgba(255,200,60,0)");
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(0, 0, GOLDEN_SIZE, 0, Math.PI * 2);
+        ctx.fill();
+        if (goldImg && goldImg.complete) {
+          ctx.filter = "sepia(1) saturate(6) hue-rotate(-15deg) brightness(1.15)";
+          ctx.drawImage(goldImg, -GOLDEN_SIZE / 2, -GOLDEN_SIZE / 2, GOLDEN_SIZE, GOLDEN_SIZE);
+          ctx.filter = "none";
+        }
+        ctx.restore();
+      }
+
+      // aura de absorcion
+      if (g.magnet > 0) {
+        const t = g.magnet / MAGNET_FRAMES;
+        ctx.save();
+        ctx.globalAlpha = 0.25 + Math.sin(g.frame * 0.25) * 0.1;
+        ctx.strokeStyle = "#ffd45e";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(80, g.y, MAGNET_RADIUS * (0.75 + t * 0.25), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+
       ctx.fillStyle = "#2a2a30";
       ctx.fillRect(0, HEIGHT - GROUND_H, WIDTH, GROUND_H);
       ctx.fillStyle = "#f5d547";
