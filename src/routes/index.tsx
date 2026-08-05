@@ -152,10 +152,11 @@ function Game() {
     setSfxVol(getSfxVolume());
 
     for (const c of CHARACTERS) {
+      if (imgCacheRef.current[c.base]) continue;
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.src = c.url;
-      imgCacheRef.current[c.id] = img;
+      imgCacheRef.current[c.base] = img;
     }
     const coinImg = new Image();
     coinImg.src = pastelitoImg;
