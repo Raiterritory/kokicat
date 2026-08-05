@@ -688,7 +688,7 @@ function Game() {
                   <span>🧁</span><span>{coins}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
                 {CHARACTERS.map((c) => {
                   const isUnlocked = unlocked.includes(c.id);
                   const isSelected = selectedId === c.id;
@@ -709,6 +709,7 @@ function Game() {
                         <img
                           src={c.url}
                           alt={c.name}
+                          style={c.filter && isUnlocked ? { filter: c.filter } : undefined}
                           className={`h-20 w-20 object-contain ${!isUnlocked ? "grayscale opacity-50" : ""}`}
                         />
                         {!isUnlocked && (
