@@ -490,7 +490,7 @@ function Game() {
         ctx.fillRect(i - off, HEIGHT - GROUND_H + 18, 16, 4);
       }
 
-      const img = imgCacheRef.current[selectedRef.current] || imgCacheRef.current["koki"];
+      
       const selChar = CHAR_BY_ID[selectedRef.current];
       const img = imgCacheRef.current[selChar?.base ?? "koki"] || imgCacheRef.current["koki"];
       if (img && img.complete) {
