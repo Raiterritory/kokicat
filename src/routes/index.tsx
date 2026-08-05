@@ -56,14 +56,42 @@ type Character = {
   name: string;
   url: string;
   price: number;
+  base: string;
+  filter?: string;
 };
 
 const CHARACTERS: Character[] = [
-  { id: "koki", name: "Koki", url: kokiAsset.url, price: 0 },
-  { id: "taz", name: "Taz", url: tazAsset.url, price: 60 },
-  { id: "gufi", name: "Gufi", url: gufiAsset.url, price: 60 },
-  { id: "raton", name: "Ratón", url: ratonAsset.url, price: 120 },
+  // base
+  { id: "koki", name: "Koki", url: kokiAsset.url, price: 0, base: "koki" },
+  { id: "taz", name: "Taz", url: tazAsset.url, price: 60, base: "taz" },
+  { id: "gufi", name: "Gufi", url: gufiAsset.url, price: 60, base: "gufi" },
+  { id: "raton", name: "Ratón", url: ratonAsset.url, price: 120, base: "raton" },
+
+  // variantes de Koki
+  { id: "koki-azul", name: "Koki Azul", url: kokiAsset.url, price: 200, base: "koki", filter: "hue-rotate(185deg) saturate(1.5)" },
+  { id: "koki-rosa", name: "Koki Rosa", url: kokiAsset.url, price: 300, base: "koki", filter: "hue-rotate(300deg) saturate(1.6)" },
+  { id: "koki-verde", name: "Koki Verde", url: kokiAsset.url, price: 400, base: "koki", filter: "hue-rotate(95deg) saturate(1.4)" },
+  { id: "koki-dorado", name: "Koki Dorado", url: kokiAsset.url, price: 800, base: "koki", filter: "sepia(1) saturate(6) hue-rotate(-15deg) brightness(1.1)" },
+
+  // variantes de Taz
+  { id: "taz-violeta", name: "Taz Violeta", url: tazAsset.url, price: 250, base: "taz", filter: "hue-rotate(265deg) saturate(1.8) brightness(1.15)" },
+  { id: "taz-fuego", name: "Taz Fuego", url: tazAsset.url, price: 450, base: "taz", filter: "sepia(1) saturate(5) hue-rotate(-25deg) brightness(1.2)" },
+  { id: "taz-hielo", name: "Taz Hielo", url: tazAsset.url, price: 600, base: "taz", filter: "hue-rotate(175deg) saturate(2) brightness(1.35)" },
+
+  // variantes de Gufi
+  { id: "gufi-crema", name: "Gufi Crema", url: gufiAsset.url, price: 250, base: "gufi", filter: "saturate(0.5) brightness(1.35)" },
+  { id: "gufi-menta", name: "Gufi Menta", url: gufiAsset.url, price: 500, base: "gufi", filter: "hue-rotate(120deg) saturate(1.5) brightness(1.1)" },
+  { id: "gufi-neon", name: "Gufi Neón", url: gufiAsset.url, price: 700, base: "gufi", filter: "hue-rotate(290deg) saturate(3) brightness(1.2)" },
+
+  // variantes de Ratón
+  { id: "raton-blanco", name: "Ratón Blanco", url: ratonAsset.url, price: 350, base: "raton", filter: "saturate(0.2) brightness(1.7)" },
+  { id: "raton-cyber", name: "Ratón Cyber", url: ratonAsset.url, price: 900, base: "raton", filter: "hue-rotate(200deg) saturate(3.5) brightness(1.25)" },
+  { id: "raton-arcoiris", name: "Ratón Arcoíris", url: ratonAsset.url, price: 1000, base: "raton", filter: "hue-rotate(45deg) saturate(4) contrast(1.2) brightness(1.3)" },
 ];
+
+const CHAR_BY_ID: Record<string, Character> = Object.fromEntries(
+  CHARACTERS.map((c) => [c.id, c]),
+);
 
 function loadUnlocked(): string[] {
   try {
@@ -124,10 +152,11 @@ function Game() {
     setSfxVol(getSfxVolume());
 
     for (const c of CHARACTERS) {
+      if (imgCacheRef.current[c.base]) continue;
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.src = c.url;
-      imgCacheRef.current[c.id] = img;
+      imgCacheRef.current[c.base] = img;
     }
     const coinImg = new Image();
     coinImg.src = pastelitoImg;
@@ -461,13 +490,16 @@ function Game() {
         ctx.fillRect(i - off, HEIGHT - GROUND_H + 18, 16, 4);
       }
 
-      const img = imgCacheRef.current[selectedRef.current] || imgCacheRef.current["koki"];
+      
+      const selChar = CHAR_BY_ID[selectedRef.current];
+      const img = imgCacheRef.current[selChar?.base ?? "koki"] || imgCacheRef.current["koki"];
       if (img && img.complete) {
         const flapPulse = g.flap;
         const idleFlutter = Math.sin(g.frame * 0.35) * 0.06;
         const scaleY = 1 + idleFlutter - flapPulse * 0.18;
         const scaleX = 1 - idleFlutter + flapPulse * 0.15;
         const extraRot = -flapPulse * 0.35;
+        const skinFilter = selChar?.filter;
 
         if (flapPulse > 0.2) {
           ctx.save();
@@ -475,6 +507,7 @@ function Game() {
           ctx.translate(80 - 12, g.y + 4);
           ctx.rotate(g.rot + extraRot);
           ctx.scale(scaleX, scaleY);
+          if (skinFilter) ctx.filter = skinFilter;
           ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
           ctx.restore();
         }
@@ -483,9 +516,11 @@ function Game() {
         ctx.translate(80, g.y);
         ctx.rotate(g.rot + extraRot);
         ctx.scale(scaleX, scaleY);
+        if (skinFilter) ctx.filter = skinFilter;
         ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
         ctx.restore();
       }
+
 
       for (const p of g.particles) {
         p.x += p.vx;
@@ -653,7 +688,7 @@ function Game() {
                   <span>🧁</span><span>{coins}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
                 {CHARACTERS.map((c) => {
                   const isUnlocked = unlocked.includes(c.id);
                   const isSelected = selectedId === c.id;
@@ -674,6 +709,7 @@ function Game() {
                         <img
                           src={c.url}
                           alt={c.name}
+                          style={c.filter && isUnlocked ? { filter: c.filter } : undefined}
                           className={`h-20 w-20 object-contain ${!isUnlocked ? "grayscale opacity-50" : ""}`}
                         />
                         {!isUnlocked && (
