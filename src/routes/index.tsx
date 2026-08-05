@@ -491,12 +491,15 @@ function Game() {
       }
 
       const img = imgCacheRef.current[selectedRef.current] || imgCacheRef.current["koki"];
+      const selChar = CHAR_BY_ID[selectedRef.current];
+      const img = imgCacheRef.current[selChar?.base ?? "koki"] || imgCacheRef.current["koki"];
       if (img && img.complete) {
         const flapPulse = g.flap;
         const idleFlutter = Math.sin(g.frame * 0.35) * 0.06;
         const scaleY = 1 + idleFlutter - flapPulse * 0.18;
         const scaleX = 1 - idleFlutter + flapPulse * 0.15;
         const extraRot = -flapPulse * 0.35;
+        const skinFilter = selChar?.filter;
 
         if (flapPulse > 0.2) {
           ctx.save();
@@ -504,6 +507,7 @@ function Game() {
           ctx.translate(80 - 12, g.y + 4);
           ctx.rotate(g.rot + extraRot);
           ctx.scale(scaleX, scaleY);
+          if (skinFilter) ctx.filter = skinFilter;
           ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
           ctx.restore();
         }
@@ -512,9 +516,11 @@ function Game() {
         ctx.translate(80, g.y);
         ctx.rotate(g.rot + extraRot);
         ctx.scale(scaleX, scaleY);
+        if (skinFilter) ctx.filter = skinFilter;
         ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
         ctx.restore();
       }
+
 
       for (const p of g.particles) {
         p.x += p.vx;
