@@ -418,7 +418,7 @@ function Game() {
       }
 
       // --- Nyan-style rainbow trail following the character ---
-      g.trail.forEach((t) => (t.x -= PIPE_SPEED));
+      g.trail.forEach((t) => (t.x -= g.speed));
       g.trail.push({ x: 80, y: g.y });
       g.trail = g.trail.filter((t) => t.x > -30);
       if (g.trail.length > 2) {
