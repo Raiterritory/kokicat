@@ -626,9 +626,10 @@ function Game() {
     const endGame = () => {
       if (stateRef.current !== "playing") return;
       const g = gameRef.current;
-      const b = Number(localStorage.getItem("koki-best") || 0);
+      const bestKey = modeRef.current === "hard" ? "koki-best-hard" : "koki-best";
+      const b = Number(localStorage.getItem(bestKey) || 0);
       if (g.score > b) {
-        localStorage.setItem("koki-best", String(g.score));
+        localStorage.setItem(bestKey, String(g.score));
         setBest(g.score);
       }
       const totalCoins = Number(localStorage.getItem("koki-coins") || 0) + g.runCoins;
