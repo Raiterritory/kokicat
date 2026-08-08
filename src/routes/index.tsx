@@ -161,6 +161,11 @@ function Game() {
   });
 
   useEffect(() => {
+    const key = mode === "hard" ? "koki-best-hard" : "koki-best";
+    setBest(Number(localStorage.getItem(key) || 0));
+  }, [mode]);
+
+  useEffect(() => {
     setBest(Number(localStorage.getItem("koki-best") || 0));
     setCoins(Number(localStorage.getItem("koki-coins") || 0));
     setUnlocked(loadUnlocked());
