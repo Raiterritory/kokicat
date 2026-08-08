@@ -263,9 +263,9 @@ function Game() {
     if (s === "ready") {
       startGame();
     } else if (s === "playing") {
-      // impulso acumulativo: si ya venia cayendo fuerte, el salto cuesta un poco mas
-      gameRef.current.vy = JUMP + Math.max(0, gameRef.current.vy) * 0.12;
-      gameRef.current.rot = -0.35;
+      // impulso fijo, como en Flappy Bird
+      gameRef.current.vy = JUMP;
+      gameRef.current.rot = -0.45;
       gameRef.current.flap = 1;
       spawnPuff(80, gameRef.current.y + 10);
       playFlap();
