@@ -148,7 +148,9 @@ function Game() {
     goldens: [] as Golden[],
     magnet: 0,
     sinceGolden: 0,
-
+    speed: PIPE_SPEED,
+    scroll: 0,
+    spawnDist: 0,
   });
 
   useEffect(() => {
