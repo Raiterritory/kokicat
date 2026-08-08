@@ -612,6 +612,15 @@ function Game() {
         ctx.strokeText(label, WIDTH - 16, 40);
         ctx.fillText(label, WIDTH - 16, 40);
 
+        if (modeRef.current === "hard") {
+          ctx.font = "bold 16px system-ui, sans-serif";
+          ctx.textAlign = "left";
+          const hard = `🔥 x${(g.speed / PIPE_SPEED).toFixed(2)}`;
+          ctx.strokeText(hard, 60, 40);
+          ctx.fillText(hard, 60, 40);
+        }
+
+
         if (g.magnet > 0) {
           ctx.textAlign = "center";
           ctx.font = "bold 18px system-ui, sans-serif";
