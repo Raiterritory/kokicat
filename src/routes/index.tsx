@@ -269,8 +269,16 @@ function Game() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
     let raf = 0;
+    const FRAME_MS = 1000 / 60;
+    let lastTime = 0;
 
-    const draw = () => {
+    const draw = (now = 0) => {
+      // Cap a 60 FPS: salta el frame si aún no pasó el intervalo
+      if (now && lastTime && now - lastTime < FRAME_MS - 1) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+      lastTime = now || lastTime;
       const { w: WIDTH, h: HEIGHT } = sizeRef.current;
       const g = gameRef.current;
 
