@@ -702,23 +702,29 @@ function Game() {
 
         {state === "menu" && (
           <Overlay>
-            <div className="flex flex-col items-center gap-6 px-6 text-center w-full max-w-sm">
+            <div className="flex flex-col items-center gap-4 px-6 text-center w-full max-w-sm">
               <img
                 src={menuLogo.url}
                 alt="Estamos aqui con Koki"
                 onClick={(e) => { e.stopPropagation(); playLogoSound(); }}
-                className="w-full max-w-[320px] cursor-pointer select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform active:scale-95"
+                className="w-full max-w-[300px] cursor-pointer select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform active:scale-95"
                 style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }}
               />
               <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5 text-white font-bold text-sm backdrop-blur">
                 <span>🧁</span><span>{coins} pastelitos</span>
               </div>
               <button
-                onClick={(e) => { e.stopPropagation(); startGame(); }}
+                onClick={(e) => { e.stopPropagation(); startGame("normal"); }}
                 className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-10 py-4 text-2xl font-black tracking-wide text-white shadow-[0_6px_0_rgb(127_29_29),0_10px_20px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29),0_4px_10px_rgba(0,0,0,0.4)]"
                 style={{ WebkitTextStroke: "1px rgba(0,0,0,0.3)" }}
               >
                 ▶ JUGAR
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); startGame("hard"); }}
+                className="w-full rounded-full bg-gradient-to-b from-orange-400 to-rose-700 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(124_45_18),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(124_45_18)]"
+              >
+                🔥 DIFÍCIL
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setState("characters"); }}
