@@ -57,6 +57,7 @@ type Particle = {
   kind: "puff" | "star" | "coin";
 };
 type GameState = "menu" | "characters" | "ready" | "playing" | "over";
+type Mode = "normal" | "hard";
 
 
 type Character = {
