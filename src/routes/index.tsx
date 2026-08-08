@@ -509,7 +509,7 @@ function Game() {
       ctx.fillRect(0, HEIGHT - GROUND_H, WIDTH, GROUND_H);
       ctx.fillStyle = "#f5d547";
       for (let i = 0; i < WIDTH; i += 30) {
-        const off = (g.frame * PIPE_SPEED) % 30;
+        const off = g.scroll % 30;
         ctx.fillRect(i - off, HEIGHT - GROUND_H + 18, 16, 4);
       }
 
