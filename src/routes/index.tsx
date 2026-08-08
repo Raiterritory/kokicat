@@ -317,16 +317,23 @@ function Game() {
       if (g.flap > 0) g.flap = Math.max(0, g.flap - 0.06);
 
       if (stateRef.current === "playing") {
-        // gravedad variable + drag + velocidad terminal
-        g.vy += g.vy < 0 ? RISE_GRAVITY : GRAVITY;
-        g.vy *= AIR_DRAG;
+        // velocidad: constante en normal, creciente en dificil
+        g.speed = modeRef.current === "hard"
+          ? Math.min(HARD_MAX_SPEED, HARD_START + g.score * HARD_SPEED_PER_POINT)
+          : PIPE_SPEED;
+
+        // fisica flappy: gravedad constante + impulso fijo
+        g.vy += GRAVITY;
         if (g.vy > MAX_FALL) g.vy = MAX_FALL;
         g.y += g.vy;
-        // rotacion suavizada hacia el angulo real del movimiento
-        const targetRot = Math.max(-0.45, Math.min(1.25, Math.atan2(g.vy, 7)));
-        g.rot += (targetRot - g.rot) * 0.18;
+        // rotacion tipo flappy: apunta hacia donde va
+        const targetRot = g.vy < 0 ? -0.45 : Math.min(1.4, g.vy * 0.12);
+        g.rot += (targetRot - g.rot) * (g.vy < 0 ? 0.5 : 0.12);
 
-        if (g.frame % PIPE_INTERVAL === 0) {
+        // spawn por distancia recorrida (asi el espaciado no cambia con la velocidad)
+        g.spawnDist += g.speed;
+        if (g.spawnDist >= PIPE_INTERVAL * PIPE_SPEED) {
+          g.spawnDist = 0;
           const top = 60 + Math.random() * (HEIGHT - GAP - 180);
           g.pipes.push({ x: WIDTH, top, passed: false });
           g.sinceGolden++;
@@ -352,11 +359,11 @@ function Game() {
             });
           }
         }
-        g.pipes.forEach((p) => (p.x -= PIPE_SPEED));
+        g.pipes.forEach((p) => (p.x -= g.speed));
         g.pipes = g.pipes.filter((p) => p.x + PIPE_W > 0);
-        g.coins.forEach((c) => { c.x -= PIPE_SPEED; c.bob += 0.1; });
+        g.coins.forEach((c) => { c.x -= g.speed; c.bob += 0.1; });
         g.coins = g.coins.filter((c) => c.x + COIN_SIZE > 0 && !c.taken);
-        g.goldens.forEach((gd) => { gd.x -= PIPE_SPEED; gd.bob += 0.09; });
+        g.goldens.forEach((gd) => { gd.x -= g.speed; gd.bob += 0.09; });
         g.goldens = g.goldens.filter((gd) => gd.x + GOLDEN_SIZE > 0 && !gd.taken);
 
         const kx = 80;
