@@ -310,9 +310,14 @@ function Game() {
       if (g.flap > 0) g.flap = Math.max(0, g.flap - 0.06);
 
       if (stateRef.current === "playing") {
-        g.vy += GRAVITY;
+        // gravedad variable + drag + velocidad terminal
+        g.vy += g.vy < 0 ? RISE_GRAVITY : GRAVITY;
+        g.vy *= AIR_DRAG;
+        if (g.vy > MAX_FALL) g.vy = MAX_FALL;
         g.y += g.vy;
-        g.rot = Math.max(-0.4, Math.min(1.2, g.vy * 0.08));
+        // rotacion suavizada hacia el angulo real del movimiento
+        const targetRot = Math.max(-0.45, Math.min(1.25, Math.atan2(g.vy, 7)));
+        g.rot += (targetRot - g.rot) * 0.18;
 
         if (g.frame % PIPE_INTERVAL === 0) {
           const top = 60 + Math.random() * (HEIGHT - GAP - 180);
