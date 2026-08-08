@@ -245,9 +245,11 @@ function Game() {
     }
   };
 
-  const startGame = useCallback(() => {
+  const startGame = useCallback((m?: Mode) => {
     kickMusic();
+    if (m) { setMode(m); modeRef.current = m; }
     reset();
+    gameRef.current.speed = modeRef.current === "hard" ? HARD_START : PIPE_SPEED;
     setState("playing");
     gameRef.current.vy = JUMP;
     gameRef.current.flap = 1;
