@@ -121,6 +121,10 @@ function Game() {
   const [showSettings, setShowSettings] = useState(false);
   const [musicVol, setMusicVol] = useState(0.3);
   const [sfxVol, setSfxVol] = useState(1);
+  const [mode, setMode] = useState<Mode>("normal");
+  const [debugPass, setDebugPass] = useState("");
+  const [debugMsg, setDebugMsg] = useState("");
+  const [debugOpen, setDebugOpen] = useState(false);
   const musicStartedRef = useRef(false);
 
   const kickMusic = useCallback(() => {
@@ -133,6 +137,8 @@ function Game() {
   stateRef.current = state;
   const selectedRef = useRef(selectedId);
   selectedRef.current = selectedId;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   const sizeRef = useRef({ w: 400, h: 600 });
   const [size, setSize] = useState({ w: 400, h: 600 });
