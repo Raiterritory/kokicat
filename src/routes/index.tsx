@@ -666,6 +666,23 @@ function Game() {
     localStorage.setItem("koki-selected", id);
   };
 
+  const tryDebug = () => {
+    if (debugPass !== DEBUG_PASSWORD) {
+      setDebugMsg("Contraseña incorrecta");
+      return;
+    }
+    const all = CHARACTERS.map((c) => c.id);
+    const newCoins = Math.max(coins, 9999);
+    setUnlocked(all);
+    setCoins(newCoins);
+    localStorage.setItem("koki-unlocked", JSON.stringify(all));
+    localStorage.setItem("koki-coins", String(newCoins));
+    setDebugPass("");
+    setDebugMsg("¡Modo debug activo! Todo desbloqueado 🎉");
+  };
+
+
+
   return (
     <div className="fixed inset-0 overflow-hidden bg-slate-900">
       <div
