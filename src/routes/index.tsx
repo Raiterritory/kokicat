@@ -434,7 +434,7 @@ function Game() {
           ctx.strokeStyle = color;
           ctx.beginPath();
           g.trail.forEach((t, i) => {
-            const step = Math.round((t.x + g.frame * PIPE_SPEED) / 14) % 2;
+            const step = Math.round((t.x + g.scroll) / 14) % 2;
             const wob = step === 0 ? -3 : 3;
             const y = t.y + off + wob;
             if (i === 0) ctx.moveTo(t.x, y);
