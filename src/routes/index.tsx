@@ -25,8 +25,11 @@ export const Route = createFileRoute("/")({
 });
 
 
-const GRAVITY = 0.34;
-const JUMP = -7;
+const GRAVITY = 0.42;         // aceleracion base
+const RISE_GRAVITY = 0.26;    // gravedad menor al subir -> hang time mas natural
+const AIR_DRAG = 0.995;       // resistencia del aire
+const MAX_FALL = 11;          // velocidad terminal de caida
+const JUMP = -7.4;
 const PIPE_W = 70;
 const GAP = 205;
 const PIPE_SPEED = 2.5;
