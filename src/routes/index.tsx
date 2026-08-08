@@ -25,14 +25,13 @@ export const Route = createFileRoute("/")({
 });
 
 
-const GRAVITY = 0.42;         // aceleracion base
-const RISE_GRAVITY = 0.26;    // gravedad menor al subir -> hang time mas natural
-const AIR_DRAG = 0.995;       // resistencia del aire
-const MAX_FALL = 11;          // velocidad terminal de caida
-const JUMP = -7.4;
+// Fisica estilo Flappy Bird: gravedad constante, impulso fijo, sin drag
+const GRAVITY = 0.5;
+const JUMP = -8.4;
+const MAX_FALL = 12;
 const PIPE_W = 70;
 const GAP = 205;
-const PIPE_SPEED = 2.5;
+const PIPE_SPEED = 2.5;      // velocidad base
 const PIPE_INTERVAL = 112; // frames between pipes (mayor = tubos mas separados)
 const KOKI_SIZE = 64;
 const GROUND_H = 40;
@@ -43,6 +42,12 @@ const GOLDEN_MIN_GAP = 6; // minimo de tubos entre dos Kokis dorados
 const MAGNET_FRAMES = 360; // 6 segundos a 60fps
 const MAGNET_RADIUS = 240;
 
+// Modo dificil: acelera con el score
+const HARD_START = 3.1;
+const HARD_SPEED_PER_POINT = 0.055;
+const HARD_MAX_SPEED = 7;
+const DEBUG_PASSWORD = "Naomiratona";
+
 type Pipe = { x: number; top: number; passed: boolean };
 type Coin = { x: number; y: number; taken: boolean; bob: number };
 type Golden = { x: number; y: number; taken: boolean; bob: number };
@@ -52,6 +57,7 @@ type Particle = {
   kind: "puff" | "star" | "coin";
 };
 type GameState = "menu" | "characters" | "ready" | "playing" | "over";
+type Mode = "normal" | "hard";
 
 
 type Character = {
@@ -116,6 +122,10 @@ function Game() {
   const [showSettings, setShowSettings] = useState(false);
   const [musicVol, setMusicVol] = useState(0.3);
   const [sfxVol, setSfxVol] = useState(1);
+  const [mode, setMode] = useState<Mode>("normal");
+  const [debugPass, setDebugPass] = useState("");
+  const [debugMsg, setDebugMsg] = useState("");
+  const [debugOpen, setDebugOpen] = useState(false);
   const musicStartedRef = useRef(false);
 
   const kickMusic = useCallback(() => {
@@ -128,6 +138,8 @@ function Game() {
   stateRef.current = state;
   const selectedRef = useRef(selectedId);
   selectedRef.current = selectedId;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   const sizeRef = useRef({ w: 400, h: 600 });
   const [size, setSize] = useState({ w: 400, h: 600 });
@@ -143,8 +155,15 @@ function Game() {
     goldens: [] as Golden[],
     magnet: 0,
     sinceGolden: 0,
-
+    speed: PIPE_SPEED,
+    scroll: 0,
+    spawnDist: 0,
   });
+
+  useEffect(() => {
+    const key = mode === "hard" ? "koki-best-hard" : "koki-best";
+    setBest(Number(localStorage.getItem(key) || 0));
+  }, [mode]);
 
   useEffect(() => {
     setBest(Number(localStorage.getItem("koki-best") || 0));
@@ -186,6 +205,7 @@ function Game() {
       y: h / 2, vy: 0, pipes: [], coins: [],
       frame: 0, score: 0, rot: 0, flap: 0, runCoins: 0,
       particles: [], trail: [], goldens: [], magnet: 0, sinceGolden: 0,
+      speed: PIPE_SPEED, scroll: 0, spawnDist: 0,
     };
     setScore(0);
   };
@@ -230,9 +250,11 @@ function Game() {
     }
   };
 
-  const startGame = useCallback(() => {
+  const startGame = useCallback((m?: Mode) => {
     kickMusic();
+    if (m) { setMode(m); modeRef.current = m; }
     reset();
+    gameRef.current.speed = modeRef.current === "hard" ? HARD_START : PIPE_SPEED;
     setState("playing");
     gameRef.current.vy = JUMP;
     gameRef.current.flap = 1;
@@ -246,9 +268,9 @@ function Game() {
     if (s === "ready") {
       startGame();
     } else if (s === "playing") {
-      // impulso acumulativo: si ya venia cayendo fuerte, el salto cuesta un poco mas
-      gameRef.current.vy = JUMP + Math.max(0, gameRef.current.vy) * 0.12;
-      gameRef.current.rot = -0.35;
+      // impulso fijo, como en Flappy Bird
+      gameRef.current.vy = JUMP;
+      gameRef.current.rot = -0.45;
       gameRef.current.flap = 1;
       spawnPuff(80, gameRef.current.y + 10);
       playFlap();
@@ -309,19 +331,27 @@ function Game() {
       });
 
       g.frame++;
+      g.scroll += g.speed;
       if (g.flap > 0) g.flap = Math.max(0, g.flap - 0.06);
 
       if (stateRef.current === "playing") {
-        // gravedad variable + drag + velocidad terminal
-        g.vy += g.vy < 0 ? RISE_GRAVITY : GRAVITY;
-        g.vy *= AIR_DRAG;
+        // velocidad: constante en normal, creciente en dificil
+        g.speed = modeRef.current === "hard"
+          ? Math.min(HARD_MAX_SPEED, HARD_START + g.score * HARD_SPEED_PER_POINT)
+          : PIPE_SPEED;
+
+        // fisica flappy: gravedad constante + impulso fijo
+        g.vy += GRAVITY;
         if (g.vy > MAX_FALL) g.vy = MAX_FALL;
         g.y += g.vy;
-        // rotacion suavizada hacia el angulo real del movimiento
-        const targetRot = Math.max(-0.45, Math.min(1.25, Math.atan2(g.vy, 7)));
-        g.rot += (targetRot - g.rot) * 0.18;
+        // rotacion tipo flappy: apunta hacia donde va
+        const targetRot = g.vy < 0 ? -0.45 : Math.min(1.4, g.vy * 0.12);
+        g.rot += (targetRot - g.rot) * (g.vy < 0 ? 0.5 : 0.12);
 
-        if (g.frame % PIPE_INTERVAL === 0) {
+        // spawn por distancia recorrida (asi el espaciado no cambia con la velocidad)
+        g.spawnDist += g.speed;
+        if (g.spawnDist >= PIPE_INTERVAL * PIPE_SPEED) {
+          g.spawnDist = 0;
           const top = 60 + Math.random() * (HEIGHT - GAP - 180);
           g.pipes.push({ x: WIDTH, top, passed: false });
           g.sinceGolden++;
@@ -347,11 +377,11 @@ function Game() {
             });
           }
         }
-        g.pipes.forEach((p) => (p.x -= PIPE_SPEED));
+        g.pipes.forEach((p) => (p.x -= g.speed));
         g.pipes = g.pipes.filter((p) => p.x + PIPE_W > 0);
-        g.coins.forEach((c) => { c.x -= PIPE_SPEED; c.bob += 0.1; });
+        g.coins.forEach((c) => { c.x -= g.speed; c.bob += 0.1; });
         g.coins = g.coins.filter((c) => c.x + COIN_SIZE > 0 && !c.taken);
-        g.goldens.forEach((gd) => { gd.x -= PIPE_SPEED; gd.bob += 0.09; });
+        g.goldens.forEach((gd) => { gd.x -= g.speed; gd.bob += 0.09; });
         g.goldens = g.goldens.filter((gd) => gd.x + GOLDEN_SIZE > 0 && !gd.taken);
 
         const kx = 80;
@@ -413,7 +443,7 @@ function Game() {
       }
 
       // --- Nyan-style rainbow trail following the character ---
-      g.trail.forEach((t) => (t.x -= PIPE_SPEED));
+      g.trail.forEach((t) => (t.x -= g.speed));
       g.trail.push({ x: 80, y: g.y });
       g.trail = g.trail.filter((t) => t.x > -30);
       if (g.trail.length > 2) {
@@ -429,7 +459,7 @@ function Game() {
           ctx.strokeStyle = color;
           ctx.beginPath();
           g.trail.forEach((t, i) => {
-            const step = Math.round((t.x + g.frame * PIPE_SPEED) / 14) % 2;
+            const step = Math.round((t.x + g.scroll) / 14) % 2;
             const wob = step === 0 ? -3 : 3;
             const y = t.y + off + wob;
             if (i === 0) ctx.moveTo(t.x, y);
@@ -504,7 +534,7 @@ function Game() {
       ctx.fillRect(0, HEIGHT - GROUND_H, WIDTH, GROUND_H);
       ctx.fillStyle = "#f5d547";
       for (let i = 0; i < WIDTH; i += 30) {
-        const off = (g.frame * PIPE_SPEED) % 30;
+        const off = g.scroll % 30;
         ctx.fillRect(i - off, HEIGHT - GROUND_H + 18, 16, 4);
       }
 
@@ -582,6 +612,15 @@ function Game() {
         ctx.strokeText(label, WIDTH - 16, 40);
         ctx.fillText(label, WIDTH - 16, 40);
 
+        if (modeRef.current === "hard") {
+          ctx.font = "bold 16px system-ui, sans-serif";
+          ctx.textAlign = "left";
+          const hard = `🔥 x${(g.speed / PIPE_SPEED).toFixed(2)}`;
+          ctx.strokeText(hard, 60, 40);
+          ctx.fillText(hard, 60, 40);
+        }
+
+
         if (g.magnet > 0) {
           ctx.textAlign = "center";
           ctx.font = "bold 18px system-ui, sans-serif";
@@ -601,9 +640,10 @@ function Game() {
     const endGame = () => {
       if (stateRef.current !== "playing") return;
       const g = gameRef.current;
-      const b = Number(localStorage.getItem("koki-best") || 0);
+      const bestKey = modeRef.current === "hard" ? "koki-best-hard" : "koki-best";
+      const b = Number(localStorage.getItem(bestKey) || 0);
       if (g.score > b) {
-        localStorage.setItem("koki-best", String(g.score));
+        localStorage.setItem(bestKey, String(g.score));
         setBest(g.score);
       }
       const totalCoins = Number(localStorage.getItem("koki-coins") || 0) + g.runCoins;
@@ -641,6 +681,23 @@ function Game() {
     localStorage.setItem("koki-selected", id);
   };
 
+  const tryDebug = () => {
+    if (debugPass !== DEBUG_PASSWORD) {
+      setDebugMsg("Contraseña incorrecta");
+      return;
+    }
+    const all = CHARACTERS.map((c) => c.id);
+    const newCoins = Math.max(coins, 9999);
+    setUnlocked(all);
+    setCoins(newCoins);
+    localStorage.setItem("koki-unlocked", JSON.stringify(all));
+    localStorage.setItem("koki-coins", String(newCoins));
+    setDebugPass("");
+    setDebugMsg("¡Modo debug activo! Todo desbloqueado 🎉");
+  };
+
+
+
   return (
     <div className="fixed inset-0 overflow-hidden bg-slate-900">
       <div
@@ -660,23 +717,29 @@ function Game() {
 
         {state === "menu" && (
           <Overlay>
-            <div className="flex flex-col items-center gap-6 px-6 text-center w-full max-w-sm">
+            <div className="flex flex-col items-center gap-4 px-6 text-center w-full max-w-sm">
               <img
                 src={menuLogo.url}
                 alt="Estamos aqui con Koki"
                 onClick={(e) => { e.stopPropagation(); playLogoSound(); }}
-                className="w-full max-w-[320px] cursor-pointer select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform active:scale-95"
+                className="w-full max-w-[300px] cursor-pointer select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform active:scale-95"
                 style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }}
               />
               <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5 text-white font-bold text-sm backdrop-blur">
                 <span>🧁</span><span>{coins} pastelitos</span>
               </div>
               <button
-                onClick={(e) => { e.stopPropagation(); startGame(); }}
+                onClick={(e) => { e.stopPropagation(); startGame("normal"); }}
                 className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-10 py-4 text-2xl font-black tracking-wide text-white shadow-[0_6px_0_rgb(127_29_29),0_10px_20px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29),0_4px_10px_rgba(0,0,0,0.4)]"
                 style={{ WebkitTextStroke: "1px rgba(0,0,0,0.3)" }}
               >
                 ▶ JUGAR
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); startGame("hard"); }}
+                className="w-full rounded-full bg-gradient-to-b from-orange-400 to-rose-700 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(124_45_18),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(124_45_18)]"
+              >
+                🔥 DIFÍCIL
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setState("characters"); }}
@@ -691,7 +754,7 @@ function Game() {
                 🔊 SONIDO
               </button>
               <div className="text-xs font-semibold uppercase tracking-widest text-white/80">
-                Mejor: {best}
+                Mejor {mode === "hard" ? "difícil" : "normal"}: {best}
               </div>
             </div>
           </Overlay>
@@ -868,6 +931,36 @@ function Game() {
                   className="w-full h-3 accent-pink-400"
                 />
               </label>
+
+              <div className="mb-5 rounded-2xl bg-black/30 p-3">
+                <button
+                  onClick={() => { setDebugOpen((v) => !v); setDebugMsg(""); }}
+                  className="w-full text-left text-sm font-bold text-white/70"
+                >
+                  🛠️ Modo debug {debugOpen ? "▲" : "▼"}
+                </button>
+                {debugOpen && (
+                  <div className="mt-3">
+                    <input
+                      type="password"
+                      value={debugPass}
+                      onChange={(e) => setDebugPass(e.target.value)}
+                      placeholder="Contraseña"
+                      className="w-full rounded-xl bg-white/10 px-3 py-2 text-white placeholder-white/40 outline-none"
+                    />
+                    <button
+                      onClick={tryDebug}
+                      className="mt-2 w-full rounded-xl bg-gradient-to-b from-fuchsia-500 to-purple-700 px-4 py-2 font-black text-white active:translate-y-0.5"
+                    >
+                      Desbloquear todo
+                    </button>
+                    {debugMsg && (
+                      <div className="mt-2 text-center text-xs font-bold text-white/80">{debugMsg}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
 
               <button
                 onClick={() => setShowSettings(false)}
