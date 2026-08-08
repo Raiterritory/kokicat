@@ -25,14 +25,13 @@ export const Route = createFileRoute("/")({
 });
 
 
-const GRAVITY = 0.42;         // aceleracion base
-const RISE_GRAVITY = 0.26;    // gravedad menor al subir -> hang time mas natural
-const AIR_DRAG = 0.995;       // resistencia del aire
-const MAX_FALL = 11;          // velocidad terminal de caida
-const JUMP = -7.4;
+// Fisica estilo Flappy Bird: gravedad constante, impulso fijo, sin drag
+const GRAVITY = 0.5;
+const JUMP = -8.4;
+const MAX_FALL = 12;
 const PIPE_W = 70;
 const GAP = 205;
-const PIPE_SPEED = 2.5;
+const PIPE_SPEED = 2.5;      // velocidad base
 const PIPE_INTERVAL = 112; // frames between pipes (mayor = tubos mas separados)
 const KOKI_SIZE = 64;
 const GROUND_H = 40;
@@ -42,6 +41,12 @@ const GOLDEN_CHANCE = 0.07; // raro: ~7% por tubo
 const GOLDEN_MIN_GAP = 6; // minimo de tubos entre dos Kokis dorados
 const MAGNET_FRAMES = 360; // 6 segundos a 60fps
 const MAGNET_RADIUS = 240;
+
+// Modo dificil: acelera con el score
+const HARD_START = 3.1;
+const HARD_SPEED_PER_POINT = 0.055;
+const HARD_MAX_SPEED = 7;
+const DEBUG_PASSWORD = "Naomiratona";
 
 type Pipe = { x: number; top: number; passed: boolean };
 type Coin = { x: number; y: number; taken: boolean; bob: number };
