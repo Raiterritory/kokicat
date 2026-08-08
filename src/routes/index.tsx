@@ -191,6 +191,7 @@ function Game() {
       y: h / 2, vy: 0, pipes: [], coins: [],
       frame: 0, score: 0, rot: 0, flap: 0, runCoins: 0,
       particles: [], trail: [], goldens: [], magnet: 0, sinceGolden: 0,
+      speed: PIPE_SPEED, scroll: 0, spawnDist: 0,
     };
     setScore(0);
   };
