@@ -739,7 +739,7 @@ function Game() {
                 🔊 SONIDO
               </button>
               <div className="text-xs font-semibold uppercase tracking-widest text-white/80">
-                Mejor: {best}
+                Mejor {mode === "hard" ? "difícil" : "normal"}: {best}
               </div>
             </div>
           </Overlay>
