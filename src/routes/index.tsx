@@ -923,6 +923,36 @@ function Game() {
                 />
               </label>
 
+              <div className="mb-5 rounded-2xl bg-black/30 p-3">
+                <button
+                  onClick={() => { setDebugOpen((v) => !v); setDebugMsg(""); }}
+                  className="w-full text-left text-sm font-bold text-white/70"
+                >
+                  🛠️ Modo debug {debugOpen ? "▲" : "▼"}
+                </button>
+                {debugOpen && (
+                  <div className="mt-3">
+                    <input
+                      type="password"
+                      value={debugPass}
+                      onChange={(e) => setDebugPass(e.target.value)}
+                      placeholder="Contraseña"
+                      className="w-full rounded-xl bg-white/10 px-3 py-2 text-white placeholder-white/40 outline-none"
+                    />
+                    <button
+                      onClick={tryDebug}
+                      className="mt-2 w-full rounded-xl bg-gradient-to-b from-fuchsia-500 to-purple-700 px-4 py-2 font-black text-white active:translate-y-0.5"
+                    >
+                      Desbloquear todo
+                    </button>
+                    {debugMsg && (
+                      <div className="mt-2 text-center text-xs font-bold text-white/80">{debugMsg}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+
               <button
                 onClick={() => setShowSettings(false)}
                 className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 px-6 py-3 text-lg font-black text-white shadow-[0_4px_0_rgb(6_78_59)] active:translate-y-0.5"
