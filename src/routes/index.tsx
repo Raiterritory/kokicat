@@ -314,6 +314,7 @@ function Game() {
       });
 
       g.frame++;
+      g.scroll += g.speed;
       if (g.flap > 0) g.flap = Math.max(0, g.flap - 0.06);
 
       if (stateRef.current === "playing") {
