@@ -115,6 +115,7 @@ function Game() {
   const imgCacheRef = useRef<Record<string, HTMLImageElement>>({});
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
+  const [bestHard, setBestHard] = useState(0);
   const [coins, setCoins] = useState(0);
   const [state, setState] = useState<GameState>("menu");
   const [selectedId, setSelectedId] = useState<string>("koki");
@@ -167,6 +168,7 @@ function Game() {
 
   useEffect(() => {
     setBest(Number(localStorage.getItem("koki-best") || 0));
+    setBestHard(Number(localStorage.getItem("koki-best-hard") || 0));
     setCoins(Number(localStorage.getItem("koki-coins") || 0));
     setUnlocked(loadUnlocked());
     setSelectedId(localStorage.getItem("koki-selected") || "koki");
