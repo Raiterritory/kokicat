@@ -115,6 +115,7 @@ function Game() {
   const imgCacheRef = useRef<Record<string, HTMLImageElement>>({});
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
+  const [bestHard, setBestHard] = useState(0);
   const [coins, setCoins] = useState(0);
   const [state, setState] = useState<GameState>("menu");
   const [selectedId, setSelectedId] = useState<string>("koki");
@@ -167,6 +168,7 @@ function Game() {
 
   useEffect(() => {
     setBest(Number(localStorage.getItem("koki-best") || 0));
+    setBestHard(Number(localStorage.getItem("koki-best-hard") || 0));
     setCoins(Number(localStorage.getItem("koki-coins") || 0));
     setUnlocked(loadUnlocked());
     setSelectedId(localStorage.getItem("koki-selected") || "koki");
@@ -644,7 +646,8 @@ function Game() {
       const b = Number(localStorage.getItem(bestKey) || 0);
       if (g.score > b) {
         localStorage.setItem(bestKey, String(g.score));
-        setBest(g.score);
+        if (modeRef.current === "hard") setBestHard(g.score);
+        else setBest(g.score);
       }
       const totalCoins = Number(localStorage.getItem("koki-coins") || 0) + g.runCoins;
       localStorage.setItem("koki-coins", String(totalCoins));
@@ -753,8 +756,9 @@ function Game() {
               >
                 🔊 SONIDO
               </button>
-              <div className="text-xs font-semibold uppercase tracking-widest text-white/80">
-                Mejor {mode === "hard" ? "difícil" : "normal"}: {best}
+              <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-widest text-white/80">
+                <span>🏆 Normal: {best}</span>
+                <span>🔥 Difícil: {bestHard}</span>
               </div>
             </div>
           </Overlay>
@@ -844,8 +848,8 @@ function Game() {
                   <div className="text-2xl font-black text-slate-800">{score}</div>
                 </div>
                 <div className="rounded-2xl bg-amber-100 p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Mejor</div>
-                  <div className="text-2xl font-black text-amber-700">{best}</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Mejor {mode === "hard" ? "🔥" : "🏆"}</div>
+                  <div className="text-2xl font-black text-amber-700">{mode === "hard" ? bestHard : best}</div>
                 </div>
                 <div className="rounded-2xl bg-pink-100 p-3">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-pink-700">🧁</div>
