@@ -6,6 +6,16 @@ import tazAsset from "@/assets/taz.png.asset.json";
 import gufiAsset from "@/assets/gufi.png.asset.json";
 import ratonAsset from "@/assets/raton.png.asset.json";
 import pastelitoImg from "@/assets/pastelito.png";
+import bossPng from "@/assets/boss.png";
+
+// Jefe
+const BOSS_EVERY = 15;      // aparece cada 15 puntos
+const BOSS_FRAMES = 720;    // ~12 s de pelea
+const BOSS_SIZE = 130;
+const BOSS_WARN = 45;       // aviso antes del rayo
+const BEAM_FRAMES = 28;
+const BEAM_H = 26;
+type Boss = { x: number; y: number; t: number; cd: number; shots: { y: number; t: number }[] };
 import {
   playFlap, playMeow, playLogoSound,
   startMusic, setMusicVolume, setSfxVolume,
@@ -127,6 +137,7 @@ function Game() {
   const [debugPass, setDebugPass] = useState("");
   const [debugMsg, setDebugMsg] = useState("");
   const [debugOpen, setDebugOpen] = useState(false);
+  const [confirmWipe, setConfirmWipe] = useState(false);
   const musicStartedRef = useRef(false);
 
   const kickMusic = useCallback(() => {
@@ -159,6 +170,8 @@ function Game() {
     speed: PIPE_SPEED,
     scroll: 0,
     spawnDist: 0,
+    boss: null as Boss | null,
+    nextBoss: BOSS_EVERY,
   });
 
   useEffect(() => {
@@ -185,6 +198,9 @@ function Game() {
     const coinImg = new Image();
     coinImg.src = pastelitoImg;
     imgCacheRef.current["__coin"] = coinImg;
+    const bossImg = new Image();
+    bossImg.src = bossPng;
+    imgCacheRef.current["__boss"] = bossImg;
 
     const updateSize = () => {
       const w = window.innerWidth;
@@ -208,6 +224,7 @@ function Game() {
       frame: 0, score: 0, rot: 0, flap: 0, runCoins: 0,
       particles: [], trail: [], goldens: [], magnet: 0, sinceGolden: 0,
       speed: PIPE_SPEED, scroll: 0, spawnDist: 0,
+      boss: null, nextBoss: BOSS_EVERY,
     };
     setScore(0);
   };
@@ -352,6 +369,7 @@ function Game() {
 
         // spawn por distancia recorrida (asi el espaciado no cambia con la velocidad)
         g.spawnDist += g.speed;
+        if (g.boss) g.spawnDist = 0;
         if (g.spawnDist >= PIPE_INTERVAL * PIPE_SPEED) {
           g.spawnDist = 0;
           const top = 60 + Math.random() * (HEIGHT - GAP - 180);
@@ -436,6 +454,43 @@ function Game() {
             g.runCoins++;
             spawnCoinBurst(c.x, c.y);
             playFlap();
+          }
+        }
+
+        // --- JEFE: aparece cada BOSS_EVERY puntos ---
+        if (!g.boss && g.score > 0 && g.score >= g.nextBoss) {
+          g.boss = { x: WIDTH + BOSS_SIZE, y: HEIGHT / 2, t: 0, shots: [], cd: 90 };
+          g.nextBoss = g.score + BOSS_EVERY;
+        }
+        const b = g.boss;
+        if (b) {
+          b.t++;
+          const targetX = WIDTH - BOSS_SIZE * 0.6;
+          const leaving = b.t > BOSS_FRAMES;
+          b.x += leaving ? 4 : (targetX - b.x) * 0.05;
+          const amp = (HEIGHT - GROUND_H) / 2 - BOSS_SIZE * 0.6;
+          b.y = (HEIGHT - GROUND_H) / 2 + Math.sin(b.t * 0.035) * amp;
+          if (!leaving && b.x < targetX + 20) {
+            b.cd--;
+            if (b.cd <= 0) {
+              b.shots.push({ y: b.y, t: 0 });
+              b.cd = Math.max(55, 100 - g.score);
+            }
+          }
+          for (const s of b.shots) {
+            s.t++;
+            if (s.t >= BOSS_WARN && s.t < BOSS_WARN + BEAM_FRAMES) {
+              if (Math.abs(ky - s.y) < BEAM_H / 2 + r - 4) endGame();
+            }
+          }
+          b.shots = b.shots.filter((s) => s.t < BOSS_WARN + BEAM_FRAMES);
+          if (leaving && b.x > WIDTH + BOSS_SIZE) {
+            g.boss = null;
+            g.score += 5;
+            g.runCoins += 10;
+            setScore(g.score);
+            spawnStars(kx, ky); spawnStars(kx, ky);
+            playMeow();
           }
         }
 
@@ -597,6 +652,54 @@ function Game() {
         ctx.restore();
       }
       g.particles = g.particles.filter((p) => p.life > 0);
+
+      // --- JEFE: dibujo ---
+      const bs = g.boss;
+      if (bs) {
+        for (const s of bs.shots) {
+          if (s.t < BOSS_WARN) {
+            ctx.save();
+            ctx.globalAlpha = 0.35 + 0.35 * Math.sin(s.t * 0.6);
+            ctx.strokeStyle = "#ff3b3b";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 8]);
+            ctx.beginPath(); ctx.moveTo(0, s.y); ctx.lineTo(bs.x, s.y); ctx.stroke();
+            ctx.restore();
+          } else {
+            ctx.save();
+            const lg = ctx.createLinearGradient(0, s.y - BEAM_H / 2, 0, s.y + BEAM_H / 2);
+            lg.addColorStop(0, "rgba(255,60,200,0)");
+            lg.addColorStop(0.3, "#ff3bd0");
+            lg.addColorStop(0.5, "#ffffff");
+            lg.addColorStop(0.7, "#3bd8ff");
+            lg.addColorStop(1, "rgba(60,200,255,0)");
+            ctx.fillStyle = lg;
+            ctx.shadowColor = "#ff3bd0"; ctx.shadowBlur = 20;
+            ctx.fillRect(0, s.y - BEAM_H / 2 + Math.sin(g.frame) * 2, bs.x, BEAM_H);
+            ctx.restore();
+          }
+        }
+        const bImg = imgCacheRef.current["__boss"];
+        ctx.save();
+        ctx.translate(bs.x, bs.y);
+        ctx.rotate(Math.sin(g.frame * 0.05) * 0.08);
+        if (bImg && bImg.complete && bImg.naturalWidth) {
+          const bw = BOSS_SIZE, bh = BOSS_SIZE * (bImg.naturalHeight / bImg.naturalWidth);
+          ctx.drawImage(bImg, -bw / 2, -bh / 2, bw, bh);
+        }
+        ctx.restore();
+        if (stateRef.current === "playing") {
+          const left = Math.max(0, BOSS_FRAMES - bs.t) / BOSS_FRAMES;
+          ctx.fillStyle = "rgba(0,0,0,0.5)";
+          ctx.fillRect(WIDTH / 2 - 90, 128, 180, 12);
+          ctx.fillStyle = "#ff3b3b";
+          ctx.fillRect(WIDTH / 2 - 90, 128, 180 * left, 12);
+          ctx.font = "bold 14px system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillStyle = "#fff";
+          ctx.fillText("⚔️ JEFE — ¡sobrevive!", WIDTH / 2, 158);
+        }
+      }
 
       if (stateRef.current === "playing") {
         ctx.fillStyle = "#fff";
