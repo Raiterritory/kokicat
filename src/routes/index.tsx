@@ -802,7 +802,14 @@ function Game() {
     setDebugMsg("¡Modo debug activo! Todo desbloqueado 🎉");
   };
 
-
+  const wipeData = () => {
+    ["koki-coins", "koki-unlocked", "koki-selected", "koki-best", "koki-best-hard"].forEach((k) =>
+      localStorage.removeItem(k),
+    );
+    setCoins(0); setUnlocked(["koki"]); setSelectedId("koki");
+    setBest(0); setBestHard(0);
+    setConfirmWipe(false);
+  };
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-slate-900">
@@ -1068,7 +1075,26 @@ function Game() {
                 )}
               </div>
 
-
+              <div className="mb-5 rounded-2xl bg-red-950/40 p-3">
+                {!confirmWipe ? (
+                  <button
+                    onClick={() => setConfirmWipe(true)}
+                    className="w-full rounded-xl bg-gradient-to-b from-red-500 to-red-700 px-4 py-2 font-black text-white active:translate-y-0.5"
+                  >
+                    🗑️ Borrar datos guardados
+                  </button>
+                ) : (
+                  <div>
+                    <div className="mb-2 text-center text-sm font-bold text-white">
+                      ¿Seguro? Se borrarán tus pastelitos, personajes y récords.
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => setConfirmWipe(false)} className="flex-1 rounded-xl bg-white/20 px-3 py-2 font-black text-white">Cancelar</button>
+                      <button onClick={wipeData} className="flex-1 rounded-xl bg-red-600 px-3 py-2 font-black text-white">Sí, borrar</button>
+                    </div>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => setShowSettings(false)}
                 className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 px-6 py-3 text-lg font-black text-white shadow-[0_4px_0_rgb(6_78_59)] active:translate-y-0.5"
