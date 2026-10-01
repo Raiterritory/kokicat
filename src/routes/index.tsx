@@ -7,15 +7,17 @@ import gufiAsset from "@/assets/gufi.png.asset.json";
 import ratonAsset from "@/assets/raton.png.asset.json";
 import pastelitoImg from "@/assets/pastelito.png";
 import bossPng from "@/assets/boss.png";
-
-// Jefe
-const BOSS_EVERY = 15;      // aparece cada 15 puntos
-const BOSS_FRAMES = 720;    // ~12 s de pelea
-const BOSS_SIZE = 130;
-const BOSS_WARN = 45;       // aviso antes del rayo
-const BEAM_FRAMES = 28;
-const BEAM_H = 26;
-type Boss = { x: number; y: number; t: number; cd: number; shots: { y: number; t: number }[] };
+import {
+  BEAM_FRAMES,
+  BEAM_H,
+  BOSS_EVERY,
+  BOSS_FRAMES,
+  BOSS_SIZE,
+  createBoss,
+  updateBoss,
+  type BossState,
+} from "@/lib/bossfight";
+import { drawRainbowCharacter, rainbowMaskStyle } from "@/lib/character-skins";
 import {
   playFlap, playMeow, playLogoSound,
   startMusic, setMusicVolume, setSfxVolume,
@@ -77,6 +79,7 @@ type Character = {
   price: number;
   base: string;
   filter?: string;
+  rainbow?: boolean;
 };
 
 const CHARACTERS: Character[] = [
@@ -105,7 +108,7 @@ const CHARACTERS: Character[] = [
   // variantes de Ratón
   { id: "raton-blanco", name: "Ratón Blanco", url: ratonAsset.url, price: 350, base: "raton", filter: "saturate(0.2) brightness(1.7)" },
   { id: "raton-cyber", name: "Ratón Cyber", url: ratonAsset.url, price: 900, base: "raton", filter: "hue-rotate(200deg) saturate(3.5) brightness(1.25)" },
-  { id: "raton-arcoiris", name: "Ratón Arcoíris", url: ratonAsset.url, price: 1000, base: "raton", filter: "hue-rotate(45deg) saturate(4) contrast(1.2) brightness(1.3)" },
+  { id: "raton-arcoiris", name: "Ratón Arcoíris", url: ratonAsset.url, price: 1000, base: "raton", rainbow: true },
 ];
 
 const CHAR_BY_ID: Record<string, Character> = Object.fromEntries(
@@ -170,7 +173,7 @@ function Game() {
     speed: PIPE_SPEED,
     scroll: 0,
     spawnDist: 0,
-    boss: null as Boss | null,
+    boss: null as BossState | null,
     nextBoss: BOSS_EVERY,
   });
 
@@ -459,32 +462,24 @@ function Game() {
 
         // --- JEFE: aparece cada BOSS_EVERY puntos ---
         if (!g.boss && g.score > 0 && g.score >= g.nextBoss) {
-          g.boss = { x: WIDTH + BOSS_SIZE, y: HEIGHT / 2, t: 0, shots: [], cd: 90 };
+          g.boss = createBoss(WIDTH, HEIGHT);
           g.nextBoss = g.score + BOSS_EVERY;
         }
         const b = g.boss;
         if (b) {
-          b.t++;
-          const targetX = WIDTH - BOSS_SIZE * 0.6;
-          const leaving = b.t > BOSS_FRAMES;
-          b.x += leaving ? 4 : (targetX - b.x) * 0.05;
-          const amp = (HEIGHT - GROUND_H) / 2 - BOSS_SIZE * 0.6;
-          b.y = (HEIGHT - GROUND_H) / 2 + Math.sin(b.t * 0.035) * amp;
-          if (!leaving && b.x < targetX + 20) {
-            b.cd--;
-            if (b.cd <= 0) {
-              b.shots.push({ y: b.y, t: 0 });
-              b.cd = Math.max(55, 100 - g.score);
-            }
-          }
+          const bossStatus = updateBoss(b, {
+            width: WIDTH,
+            height: HEIGHT,
+            groundHeight: GROUND_H,
+            playerY: ky,
+            playerVelocity: g.vy,
+          });
           for (const s of b.shots) {
-            s.t++;
             if (s.t >= BOSS_WARN && s.t < BOSS_WARN + BEAM_FRAMES) {
               if (Math.abs(ky - s.y) < BEAM_H / 2 + r - 4) endGame();
             }
           }
-          b.shots = b.shots.filter((s) => s.t < BOSS_WARN + BEAM_FRAMES);
-          if (leaving && b.x > WIDTH + BOSS_SIZE) {
+          if (bossStatus.finished) {
             g.boss = null;
             g.score += 5;
             g.runCoins += 10;
@@ -613,7 +608,11 @@ function Game() {
           ctx.rotate(g.rot + extraRot);
           ctx.scale(scaleX, scaleY);
           if (skinFilter) ctx.filter = skinFilter;
-          ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
+          if (selChar?.rainbow) {
+            drawRainbowCharacter(ctx, img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE, g.frame * 0.04);
+          } else {
+            ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
+          }
           ctx.restore();
         }
 
@@ -622,7 +621,11 @@ function Game() {
         ctx.rotate(g.rot + extraRot);
         ctx.scale(scaleX, scaleY);
         if (skinFilter) ctx.filter = skinFilter;
-        ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
+        if (selChar?.rainbow) {
+          drawRainbowCharacter(ctx, img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE, g.frame * 0.04);
+        } else {
+          ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
+        }
         ctx.restore();
       }
 
@@ -659,11 +662,16 @@ function Game() {
         for (const s of bs.shots) {
           if (s.t < BOSS_WARN) {
             ctx.save();
-            ctx.globalAlpha = 0.35 + 0.35 * Math.sin(s.t * 0.6);
+            ctx.globalAlpha = 0.3 + 0.45 * (s.t / BOSS_WARN);
             ctx.strokeStyle = "#ff3b3b";
             ctx.lineWidth = 2;
             ctx.setLineDash([10, 8]);
             ctx.beginPath(); ctx.moveTo(0, s.y); ctx.lineTo(bs.x, s.y); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(80, s.y, 13 + Math.sin(s.t * 0.35) * 2, 0, Math.PI * 2);
+            ctx.stroke();
             ctx.restore();
           } else {
             ctx.save();
@@ -901,12 +909,21 @@ function Game() {
                       }`}
                     >
                       <div className="relative h-20 w-20 flex items-center justify-center">
-                        <img
-                          src={c.url}
-                          alt={c.name}
-                          style={c.filter && isUnlocked ? { filter: c.filter } : undefined}
-                          className={`h-20 w-20 object-contain ${!isUnlocked ? "grayscale opacity-50" : ""}`}
-                        />
+                        {c.rainbow && isUnlocked ? (
+                          <div
+                            role="img"
+                            aria-label={c.name}
+                            style={rainbowMaskStyle(c.url)}
+                            className="h-20 w-20 koki-rainbow-skin"
+                          />
+                        ) : (
+                          <img
+                            src={c.url}
+                            alt={c.name}
+                            style={c.filter && isUnlocked ? { filter: c.filter } : undefined}
+                            className={`h-20 w-20 object-contain ${!isUnlocked ? "grayscale opacity-50" : ""}`}
+                          />
+                        )}
                         {!isUnlocked && (
                           <div className="absolute inset-0 flex items-center justify-center text-3xl">🔒</div>
                         )}
@@ -1109,6 +1126,17 @@ function Game() {
         @keyframes koki-logo-bob {
           0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
           50% { transform: translateY(-8px) rotate(1.5deg) scale(1.03); }
+        }
+        @keyframes koki-rainbow-shift {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+        .koki-rainbow-skin {
+          background-size: 220% 220%;
+          animation: koki-rainbow-shift 2.4s linear infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .koki-rainbow-skin { animation: none; }
         }
         html, body, #root { height: 100%; margin: 0; overscroll-behavior: none; }
       `}</style>
