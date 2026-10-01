@@ -2,6 +2,8 @@ import type { CSSProperties } from "react";
 
 export const RAINBOW_COLORS = ["#8b3dff", "#2684ff", "#29c56f", "#ffe13b", "#ff3f45"];
 
+const layers = new WeakMap<HTMLImageElement, HTMLCanvasElement>();
+
 export function drawRainbowCharacter(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
@@ -11,7 +13,11 @@ export function drawRainbowCharacter(
   height: number,
   phase: number,
 ) {
-  const layer = document.createElement("canvas");
+  let layer = layers.get(image);
+  if (!layer) {
+    layer = document.createElement("canvas");
+    layers.set(image, layer);
+  }
   layer.width = Math.ceil(width);
   layer.height = Math.ceil(height);
   const layerCtx = layer.getContext("2d");
