@@ -322,7 +322,7 @@ function applyRound(p: { round: number; seed: number; players: Who[]; hostId: st
   }
 }
 
-/** Called by the game ~8 times per second while alive. y is 0..1 of the screen height. */
+/** Called by the game ~8 times per second while alive. y is relative to the pipe gaps (see toGapSpace), so it lines up on any screen. */
 export function reportPos(y: number, rot: number, score: number) {
   const m = state.match;
   if (m?.phase === "playing") void send("pos", { id: m.me.id, y, rot, score });

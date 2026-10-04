@@ -78,6 +78,17 @@ let landscape = false;
 // en horizontal la primera tubería sale apenas empieza la partida (en vertical, como siempre)
 const FIRST_PIPE_DIST = PIPE_INTERVAL * PIPE_SPEED;
 const firstPipeDist = () => (landscape ? FIRST_PIPE_DIST : 0);
+// Partidas online: cada tubería nace a la misma distancia delante de Koki en vertical y en
+// horizontal (en vertical, justo fuera de la pantalla), así llegan al mismo tiempo para todos.
+const MATCH_LEAD = WORLD_W - KOKI_X_LANDSCAPE;
+let inMatch = false;
+// Altura "relativa a los huecos": el centro de un hueco va de GAP_C0 a HEIGHT - GAP_SPAN + GAP_C0
+// según el azar, igual en cualquier pantalla. Sirve para que el fantasma del rival pase
+// por tus huecos igual que por los suyos aunque las pantallas tengan otra altura.
+const GAP_C0 = 60 + GAP / 2;
+const GAP_SPAN = GAP + 180;
+const toGapSpace = (y: number, h: number) => (y - GAP_C0) / Math.max(1, h - GAP_SPAN);
+const fromGapSpace = (v: number, h: number) => GAP_C0 + v * Math.max(1, h - GAP_SPAN);
 const KOKI_SIZE = 64;
 const GROUND_H = 40;
 const COIN_SIZE = 36;
@@ -350,6 +361,9 @@ function Game() {
     reset();
     rivalsRef.current = [];
     rngRef.current = seed == null ? Math.random : seededRandom(seed);
+    inMatch = seed != null;
+    // en partidas online la primera tubería sale en el mismo momento en vertical y horizontal
+    if (inMatch) gameRef.current.spawnDist = FIRST_PIPE_DIST;
     // En multijugador todos enfrentan los mismos jefes, en el mismo orden
     bossRngRef.current = seed == null ? Math.random : seededRandom(seed ^ 0x5bd1e995);
     const runMode = modeRef.current;
@@ -502,14 +516,16 @@ function Game() {
           // rng: aleatorio en solitario, con semilla compartida en multijugador
           const rng = rngRef.current;
           const top = 60 + rng() * (HEIGHT - GAP - 180);
-          g.pipes.push({ x: WIDTH, top, passed: false });
+          // dónde nace la tubería: borde de la pantalla, o en partidas online a distancia fija de Koki
+          const spawnX = inMatch ? kokiX + MATCH_LEAD : WIDTH;
+          g.pipes.push({ x: spawnX, top, passed: false });
           g.sinceGolden++;
           // ~55% chance to spawn a coin between this pipe and the next
           if (rng() < 0.55) {
             const gapCenter = top + GAP / 2;
             const jitter = (rng() - 0.5) * (GAP - 60);
             g.coins.push({
-              x: WIDTH + PIPE_W / 2 + 45,
+              x: spawnX + PIPE_W / 2 + 45,
               y: gapCenter + jitter,
               taken: false,
               bob: rng() * Math.PI * 2,
@@ -519,7 +535,7 @@ function Game() {
           if (g.sinceGolden >= GOLDEN_MIN_GAP && rng() < GOLDEN_CHANCE) {
             g.sinceGolden = 0;
             g.goldens.push({
-              x: WIDTH + PIPE_W / 2 + 120,
+              x: spawnX + PIPE_W / 2 + 120,
               y: top + GAP / 2 + (rng() - 0.5) * (GAP - 90),
               taken: false,
               bob: rng() * Math.PI * 2,
@@ -750,7 +766,7 @@ function Game() {
         for (const id in ghosts) {
           const gh = ghosts[id];
           if (!gh.alive) continue;
-          const ty = gh.y * HEIGHT;
+          const ty = fromGapSpace(gh.y, HEIGHT);
           gh.dy = gh.dy == null ? ty : gh.dy + (ty - gh.dy) * 0.25;
           ctx.globalAlpha = 0.4;
           if (gImg && gImg.complete) {
@@ -765,7 +781,7 @@ function Game() {
           ctx.fillText(`${gh.nickname} · ${gh.score}`, kokiX, gh.dy - KOKI_SIZE / 2 - 4);
         }
         ctx.restore();
-        if (stateRef.current === "playing" && g.frame % 8 === 0) reportPos(g.y / HEIGHT, g.rot, g.score);
+        if (stateRef.current === "playing" && g.frame % 8 === 0) reportPos(toGapSpace(g.y, HEIGHT), g.rot, g.score);
       }
 
       const selChar = CHAR_BY_ID[selectedRef.current];
