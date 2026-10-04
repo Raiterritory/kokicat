@@ -82,7 +82,16 @@ const lobbySend = (event: string, payload: Record<string, unknown>) =>
 /** Connects to the lobby once a nickname exists. Safe to call repeatedly. */
 export function initLobby() {
   const me = getPlayer();
-  if (!me || lobbyFor === me.id) return;
+  if (!me) {
+    // usuario eliminado: desconectarse del lobby
+    if (lobby) void supabase.removeChannel(lobby);
+    lobby = null;
+    lobbyFor = null;
+    self = null;
+    set({ online: [], incoming: null });
+    return;
+  }
+  if (lobbyFor === me.id) return;
   if (lobby) void supabase.removeChannel(lobby);
   lobbyFor = me.id;
   self = { id: me.id, nickname: me.nickname };

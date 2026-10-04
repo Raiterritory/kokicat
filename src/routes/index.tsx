@@ -24,13 +24,14 @@ import {
   updateBoss,
   type BossState,
 } from "@/lib/bossfight";
-import { drawRainbowCharacter, RainbowSkin } from "@/lib/character-skins";
+import { drawSkinCharacter, SkinPreview, type SkinFx } from "@/lib/character-skins";
 import { syncScores, loadRivals, type BoardRow } from "@/lib/leaderboard";
 import { LeaderboardModal, GameOverFriends, type Tab as BoardTab } from "@/lib/leaderboard-ui";
 import {
   useMp, getMp, ghosts, initLobby, setRoundStarter, reportPos, reportDead, seededRandom,
 } from "@/lib/multiplayer";
 import { MultiplayerLayer } from "@/lib/multiplayer-ui";
+import { SaveDataSection, OnlineAccountSection } from "@/lib/options-ui";
 import {
   playFlap, playMeow, playLogoSound, playBossStart,
   startMusic, setMusicVolume, setSfxVolume,
@@ -81,7 +82,7 @@ type Golden = { x: number; y: number; taken: boolean; bob: number };
 type Particle = {
   x: number; y: number; vx: number; vy: number;
   life: number; maxLife: number; size: number; color: string;
-  kind: "puff" | "star" | "coin";
+  kind: "puff" | "star" | "coin" | "flame";
 };
 type GameState = "menu" | "characters" | "ready" | "playing" | "over";
 type Mode = "normal" | "hard";
@@ -94,7 +95,7 @@ type Character = {
   price: number;
   base: string;
   filter?: string;
-  rainbow?: boolean;
+  fx?: SkinFx;
 };
 
 const CHARACTERS: Character[] = [
@@ -105,15 +106,15 @@ const CHARACTERS: Character[] = [
   { id: "raton", name: "Ratón", url: ratonAsset.url, price: 120, base: "raton" },
 
   // variantes de Koki
-  { id: "koki-azul", name: "Koki Azul", url: kokiAsset.url, price: 200, base: "koki", filter: "hue-rotate(185deg) saturate(1.5)" },
-  { id: "koki-rosa", name: "Koki Rosa", url: kokiAsset.url, price: 300, base: "koki", filter: "hue-rotate(300deg) saturate(1.6)" },
-  { id: "koki-verde", name: "Koki Verde", url: kokiAsset.url, price: 400, base: "koki", filter: "hue-rotate(95deg) saturate(1.4)" },
-  { id: "koki-dorado", name: "Koki Dorado", url: kokiAsset.url, price: 800, base: "koki", filter: "sepia(1) saturate(6) hue-rotate(-15deg) brightness(1.1)" },
+  { id: "koki-azul", name: "Koki Azul", url: kokiAsset.url, price: 200, base: "koki", fx: "azul" },
+  { id: "koki-rosa", name: "Koki Rosa", url: kokiAsset.url, price: 300, base: "koki", fx: "rosa" },
+  { id: "koki-verde", name: "Koki Verde", url: kokiAsset.url, price: 400, base: "koki", fx: "verde" },
+  { id: "koki-dorado", name: "Koki Dorado", url: kokiAsset.url, price: 800, base: "koki", fx: "dorado" },
 
   // variantes de Taz
-  { id: "taz-violeta", name: "Taz Violeta", url: gatoNegroPng, price: 250, base: "taz", filter: "hue-rotate(265deg) saturate(1.8) brightness(1.15)" },
-  { id: "taz-fuego", name: "Taz Fuego", url: gatoNegroPng, price: 450, base: "taz", filter: "sepia(1) saturate(5) hue-rotate(-25deg) brightness(1.2)" },
-  { id: "taz-hielo", name: "Taz Hielo", url: gatoNegroPng, price: 600, base: "taz", filter: "hue-rotate(175deg) saturate(2) brightness(1.35)" },
+  { id: "taz-violeta", name: "Taz Violeta", url: gatoNegroPng, price: 250, base: "taz", fx: "violeta" },
+  { id: "taz-fuego", name: "Taz Fuego", url: gatoNegroPng, price: 450, base: "taz", fx: "fuego" },
+  { id: "taz-hielo", name: "Taz Hielo", url: gatoNegroPng, price: 600, base: "taz", fx: "hielo" },
 
   // variantes de Gufi
   { id: "gufi-crema", name: "Gufi Crema", url: gufiAsset.url, price: 250, base: "gufi", filter: "saturate(0.5) brightness(1.35)" },
@@ -123,7 +124,7 @@ const CHARACTERS: Character[] = [
   // variantes de Ratón
   { id: "raton-blanco", name: "Ratón Blanco", url: ratonAsset.url, price: 350, base: "raton", filter: "saturate(0.2) brightness(1.7)" },
   { id: "raton-cyber", name: "Ratón Cyber", url: ratonAsset.url, price: 900, base: "raton", filter: "hue-rotate(200deg) saturate(3.5) brightness(1.25)" },
-  { id: "raton-arcoiris", name: "Ratón Arcoíris", url: ratonAsset.url, price: 1000, base: "raton", rainbow: true },
+  { id: "raton-arcoiris", name: "Ratón Arcoíris", url: ratonAsset.url, price: 1000, base: "raton", fx: "rainbow" },
 ];
 
 const CHAR_BY_ID: Record<string, Character> = Object.fromEntries(
@@ -701,6 +702,22 @@ function Game() {
       }
 
       const selChar = CHAR_BY_ID[selectedRef.current];
+
+      // Taz Fuego deja llamas; Taz Hielo, destellos de escarcha
+      if (selChar?.fx === "fuego" && g.frame % 2 === 0) {
+        g.particles.push({
+          x: 80 + (Math.random() - 0.5) * 30, y: g.y + (Math.random() - 0.3) * 30,
+          vx: -g.speed * 0.5 - Math.random(), vy: -1 - Math.random() * 1.2,
+          life: 26, maxLife: 26, size: 5 + Math.random() * 5, color: "#ff7a00", kind: "flame",
+        });
+      } else if (selChar?.fx === "hielo" && g.frame % 5 === 0) {
+        g.particles.push({
+          x: 80 + (Math.random() - 0.5) * 40, y: g.y + (Math.random() - 0.5) * 40,
+          vx: -g.speed * 0.5, vy: (Math.random() - 0.5) * 0.6,
+          life: 30, maxLife: 30, size: 3 + Math.random() * 3,
+          color: Math.random() < 0.5 ? "#ffffff" : "#9be7ff", kind: "star",
+        });
+      }
       const img = imgCacheRef.current[selChar?.base ?? "koki"] || imgCacheRef.current["koki"];
       if (img && img.complete) {
         const flapPulse = g.flap;
@@ -717,8 +734,8 @@ function Game() {
           ctx.rotate(g.rot + extraRot);
           ctx.scale(scaleX, scaleY);
           if (skinFilter) ctx.filter = skinFilter;
-          if (selChar?.rainbow) {
-            drawRainbowCharacter(ctx, img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
+          if (selChar?.fx) {
+            drawSkinCharacter(ctx, img, selChar.fx, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
           } else {
             ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
           }
@@ -730,8 +747,8 @@ function Game() {
         ctx.rotate(g.rot + extraRot);
         ctx.scale(scaleX, scaleY);
         if (skinFilter) ctx.filter = skinFilter;
-        if (selChar?.rainbow) {
-          drawRainbowCharacter(ctx, img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
+        if (selChar?.fx) {
+          drawSkinCharacter(ctx, img, selChar.fx, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
         } else {
           ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
         }
@@ -742,13 +759,20 @@ function Game() {
       for (const p of g.particles) {
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += p.kind === "puff" ? 0.05 : 0.12;
+        p.vy += p.kind === "puff" ? 0.05 : p.kind === "flame" ? -0.03 : 0.12;
         p.vx *= 0.96;
         p.life--;
         const t = p.life / p.maxLife;
         ctx.save();
         ctx.globalAlpha = Math.max(0, t);
-        if (p.kind === "puff") {
+        if (p.kind === "flame") {
+          // amarillo al nacer → naranjo → rojo al apagarse
+          ctx.globalCompositeOperation = "lighter";
+          ctx.fillStyle = t > 0.66 ? "#ffd23f" : t > 0.33 ? "#ff7a00" : "#e0240b";
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size * (0.4 + t * 0.6), 0, Math.PI * 2);
+          ctx.fill();
+        } else if (p.kind === "puff") {
           ctx.fillStyle = p.color;
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size * t + 1, 0, Math.PI * 2);
@@ -983,7 +1007,7 @@ function Game() {
                 onClick={(e) => { e.stopPropagation(); kickMusic(); setShowSettings(true); }}
                 className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(6_78_59),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(6_78_59)]"
               >
-                🔊 SONIDO
+                🔧 OPCIONES
               </button>
               <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-widest text-white/80">
                 <span>🏆 Normal: {best}</span>
@@ -1062,8 +1086,8 @@ function Game() {
                       }`}
                     >
                       <div className="relative h-20 w-20 flex items-center justify-center">
-                        {c.rainbow && isUnlocked ? (
-                          <RainbowSkin url={c.url} label={c.name} className="h-20 w-20" />
+                        {c.fx && isUnlocked ? (
+                          <SkinPreview url={c.url} fx={c.fx} label={c.name} className="h-20 w-20" />
                         ) : (
                           <img
                             src={c.url}
@@ -1155,10 +1179,10 @@ function Game() {
           <button
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); setShowSettings(true); }}
-            aria-label="Ajustes de sonido"
+            aria-label="Opciones"
             className="absolute top-3 left-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-xl text-white backdrop-blur active:scale-95"
           >
-            🔊
+            🔧
           </button>
         )}
 
@@ -1173,10 +1197,10 @@ function Game() {
             <div
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm rounded-3xl bg-gradient-to-b from-slate-800 to-slate-900 p-6 shadow-2xl border-2 border-white/10"
+              className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-3xl bg-gradient-to-b from-slate-800 to-slate-900 p-6 shadow-2xl border-2 border-white/10"
             >
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-2xl font-black text-white">Sonido</h2>
+                <h2 className="text-2xl font-black text-white">🔧 Opciones</h2>
                 <button
                   onClick={() => setShowSettings(false)}
                   className="h-9 w-9 rounded-full bg-white/15 text-white font-bold active:scale-95"
@@ -1217,6 +1241,9 @@ function Game() {
                   className="w-full h-3 accent-pink-400"
                 />
               </label>
+
+              <SaveDataSection />
+              <OnlineAccountSection />
 
               <div className="mb-5 rounded-2xl bg-black/30 p-3">
                 <button

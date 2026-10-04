@@ -31,6 +31,29 @@ export async function registerPlayer(nick: string): Promise<{ player?: Player; e
   return { player: row };
 }
 
+/** Deletes your online account (nickname, scores, friends). Local game data is kept. */
+export async function deletePlayer(): Promise<{ ok: boolean; error?: string }> {
+  const p = getPlayer();
+  if (!p) return { ok: true };
+  // delete_player is added by migration 0001; not yet in the generated types
+  const { error } = await (supabase.rpc as unknown as (
+    fn: string, args: Record<string, unknown>,
+  ) => Promise<{ error: { message: string } | null }>)("delete_player", { p_id: p.id, p_secret: p.secret });
+  if (error) {
+    if (/delete_player|function|schema cache/i.test(error.message)) {
+      return { ok: false, error: "El servidor aún no tiene esta opción activada" };
+    }
+    if (error.message.includes("invalid_player")) {
+      // la cuenta ya no existe en el servidor: basta con olvidarla aquí
+    } else {
+      return { ok: false, error: "Sin conexión, intenta de nuevo" };
+    }
+  }
+  localStorage.removeItem(KEY);
+  window.dispatchEvent(new Event("koki-player"));
+  return { ok: true };
+}
+
 /** Uploads local records. Safe to call often: the server keeps the max. */
 export async function syncScores(): Promise<boolean> {
   const p = getPlayer();
