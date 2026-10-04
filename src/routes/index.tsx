@@ -1033,6 +1033,10 @@ function Game() {
           </button>
         )}
 
+        {showBoard && (
+          <LeaderboardModal initialMode={mode} onClose={() => setShowBoard(false)} />
+        )}
+
         {showSettings && (
           <Overlay>
             <div
