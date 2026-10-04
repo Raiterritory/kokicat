@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">KokiCat</string>
+    <string name="title_activity_main">KokiCat</string>
+    <string name="package_name">app.kokicat.game</string>
+    <string name="custom_url_scheme">app.kokicat.game</string>
+</resources>

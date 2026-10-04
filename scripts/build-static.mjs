@@ -14,8 +14,16 @@ import { extname, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const ROOT = process.cwd();
-const CLIENT_DIR = join(ROOT, "dist", "client");
-const SERVER_ENTRY = join(ROOT, "dist", "server", "index.mjs");
+// En algunas PCs el build queda en ./dist y en otras en ./.output (nitro).
+// Se revisa después del build cuál existe.
+let CLIENT_DIR = join(ROOT, "dist", "client");
+let SERVER_ENTRY = join(ROOT, "dist", "server", "index.mjs");
+function resolveBuildDirs() {
+  if (!existsSync(SERVER_ENTRY) && existsSync(join(ROOT, ".output", "server", "index.mjs"))) {
+    CLIENT_DIR = join(ROOT, ".output", "public");
+    SERVER_ENTRY = join(ROOT, ".output", "server", "index.mjs");
+  }
+}
 const OUT_DIR = join(ROOT, "dist-static");
 
 const MIME = {
@@ -34,7 +42,7 @@ const MIME = {
 };
 
 function run(cmd, args) {
-  const res = spawnSync(cmd, args, { stdio: "inherit", cwd: ROOT, shell: false });
+  const res = spawnSync(cmd, args, { stdio: "inherit", cwd: ROOT, shell: process.platform === "win32" });
   if (res.status !== 0) process.exit(res.status ?? 1);
 }
 
@@ -55,6 +63,7 @@ const assets = {
 
 async function main() {
   run("bun", ["run", "build"]);
+  resolveBuildDirs();
 
   const mod = await import(pathToFileURL(SERVER_ENTRY).toString());
   const handler = mod.default;
@@ -74,6 +83,7 @@ async function main() {
   await rm(OUT_DIR, { recursive: true, force: true });
   await mkdir(OUT_DIR, { recursive: true });
   await cp(CLIENT_DIR, OUT_DIR, { recursive: true });
+  await rm(join(OUT_DIR, "_headers"), { force: true });
   await writeFile(join(OUT_DIR, "index.html"), html, "utf8");
 
   await downloadUploadedAssets();

@@ -20,7 +20,7 @@ import {
 } from "@/lib/bossfight";
 import { drawRainbowCharacter, rainbowMaskStyle } from "@/lib/character-skins";
 import { syncScores } from "@/lib/leaderboard";
-import { LeaderboardModal, GameOverFriends } from "@/lib/leaderboard-ui";
+import { LeaderboardModal, GameOverFriends, LiveRanking } from "@/lib/leaderboard-ui";
 import {
   playFlap, playMeow, playLogoSound,
   startMusic, setMusicVolume, setSfxVolume,
@@ -147,6 +147,7 @@ function Game() {
   const [debugOpen, setDebugOpen] = useState(false);
   const [confirmWipe, setConfirmWipe] = useState(false);
   const [showBoard, setShowBoard] = useState(false);
+  const [pickMode, setPickMode] = useState(false);
   useEffect(() => {
     void syncScores();
     const onOnline = () => void syncScores();
@@ -863,17 +864,11 @@ function Game() {
                 <span>🧁</span><span>{coins} pastelitos</span>
               </div>
               <button
-                onClick={(e) => { e.stopPropagation(); startGame("normal"); }}
+                onClick={(e) => { e.stopPropagation(); setPickMode(true); }}
                 className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-10 py-4 text-2xl font-black tracking-wide text-white shadow-[0_6px_0_rgb(127_29_29),0_10px_20px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29),0_4px_10px_rgba(0,0,0,0.4)]"
                 style={{ WebkitTextStroke: "1px rgba(0,0,0,0.3)" }}
               >
                 ▶ JUGAR
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); startGame("hard"); }}
-                className="w-full rounded-full bg-gradient-to-b from-orange-400 to-rose-700 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(124_45_18),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(124_45_18)]"
-              >
-                🔥 DIFÍCIL
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setState("characters"); }}
@@ -899,6 +894,41 @@ function Game() {
               </div>
             </div>
           </Overlay>
+        )}
+
+        {state === "menu" && pickMode && (
+          <div
+            className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 p-4"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); setPickMode(false); }}
+          >
+            <div
+              className="flex w-full max-w-sm flex-col gap-3 rounded-3xl border-2 border-white/10 bg-gradient-to-b from-indigo-900 to-slate-900 p-5 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-center text-2xl font-black text-white">Elige el modo</h2>
+              <button
+                onClick={(e) => { e.stopPropagation(); setPickMode(false); startGame("normal"); }}
+                className="w-full rounded-2xl bg-gradient-to-b from-red-400 to-red-600 px-6 py-4 text-left text-white shadow-[0_5px_0_rgb(127_29_29),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29)]"
+              >
+                <div className="text-xl font-black">▶ NORMAL</div>
+                <div className="text-xs font-bold text-white/85">Velocidad constante · Récord: {best}</div>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setPickMode(false); startGame("hard"); }}
+                className="w-full rounded-2xl bg-gradient-to-b from-orange-400 to-rose-700 px-6 py-4 text-left text-white shadow-[0_5px_0_rgb(124_45_18),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(124_45_18)]"
+              >
+                <div className="text-xl font-black">🔥 DIFÍCIL</div>
+                <div className="text-xs font-bold text-white/85">Cada vez más rápido · Récord: {bestHard}</div>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setPickMode(false); }}
+                className="mt-1 w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_4px_0_rgba(0,0,0,0.3)] active:translate-y-0.5"
+              >
+                ← Volver
+              </button>
+            </div>
+          </div>
         )}
 
         {state === "characters" && (
@@ -1021,6 +1051,8 @@ function Game() {
             </div>
           </Overlay>
         )}
+
+        {state === "playing" && <LiveRanking mode={mode} score={score} />}
 
         {(state === "playing" || state === "ready") && !showSettings && (
           <button
