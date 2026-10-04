@@ -19,6 +19,8 @@ import {
   type BossState,
 } from "@/lib/bossfight";
 import { drawRainbowCharacter, rainbowMaskStyle } from "@/lib/character-skins";
+import { syncScores } from "@/lib/leaderboard";
+import { LeaderboardModal, GameOverFriends } from "@/lib/leaderboard-ui";
 import {
   playFlap, playMeow, playLogoSound,
   startMusic, setMusicVolume, setSfxVolume,
@@ -144,6 +146,13 @@ function Game() {
   const [debugMsg, setDebugMsg] = useState("");
   const [debugOpen, setDebugOpen] = useState(false);
   const [confirmWipe, setConfirmWipe] = useState(false);
+  const [showBoard, setShowBoard] = useState(false);
+  useEffect(() => {
+    void syncScores();
+    const onOnline = () => void syncScores();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, []);
   const musicStartedRef = useRef(false);
 
   const kickMusic = useCallback(() => {
@@ -766,6 +775,7 @@ function Game() {
       const totalCoins = Number(localStorage.getItem("koki-coins") || 0) + g.runCoins;
       localStorage.setItem("koki-coins", String(totalCoins));
       setCoins(totalCoins);
+      void syncScores();
       setState("over");
     };
 
@@ -870,6 +880,12 @@ function Game() {
                 className="w-full rounded-full bg-gradient-to-b from-sky-400 to-blue-600 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(30_58_138),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(30_58_138)]"
               >
                 🐾 PERSONAJES
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowBoard(true); }}
+                className="w-full rounded-full bg-gradient-to-b from-amber-300 to-amber-500 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(146_64_14),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(146_64_14)]"
+              >
+                🏆 RANKING
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); kickMusic(); setShowSettings(true); }}
@@ -986,6 +1002,7 @@ function Game() {
                   <div className="text-2xl font-black text-pink-700">+{gameRef.current.runCoins}</div>
                 </div>
               </div>
+              <GameOverFriends mode={mode} onOpen={() => setShowBoard(true)} />
               <div className="mt-5 flex flex-col gap-3">
                 <button
                   onClick={(e) => { e.stopPropagation(); startGame(); }}
