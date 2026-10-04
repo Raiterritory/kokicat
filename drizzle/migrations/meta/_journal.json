@@ -15,6 +15,13 @@
       "when": 1791141367518,
       "tag": "0001_delete_player",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791141949341,
+      "tag": "0002_set_score",
+      "breakpoints": true
     }
   ]
 }

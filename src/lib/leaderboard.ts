@@ -54,17 +54,27 @@ export async function deletePlayer(): Promise<{ ok: boolean; error?: string }> {
   return { ok: true };
 }
 
-/** Uploads local records. Safe to call often: the server keeps the max. */
+/**
+ * Uploads local records exactly as they are on this device (they can go down,
+ * e.g. after wiping the save). Falls back to the max-only submit_score while
+ * the set_score function (migration 0002) is not on the server yet.
+ */
 export async function syncScores(): Promise<boolean> {
   const p = getPlayer();
   if (!p) return false;
-  const { error } = await supabase.rpc("submit_score", {
+  const args = {
     p_id: p.id,
     p_secret: p.secret,
     p_normal: Number(localStorage.getItem("koki-best") || 0),
     p_hard: Number(localStorage.getItem("koki-best-hard") || 0),
-  });
-  return !error;
+  };
+  const { error } = await (supabase.rpc as unknown as (
+    fn: string, a: Record<string, unknown>,
+  ) => Promise<{ error: { message: string } | null }>)("set_score", args);
+  if (!error) return true;
+  if (!/set_score|function|schema cache/i.test(error.message)) return false;
+  const fallback = await supabase.rpc("submit_score", args);
+  return !fallback.error;
 }
 
 export async function globalBoard(mode: BoardMode): Promise<BoardRow[] | null> {

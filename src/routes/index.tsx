@@ -952,6 +952,8 @@ function Game() {
     setCoins(0); setUnlocked(["koki"]); setSelectedId("koki");
     setBest(0); setBestHard(0);
     setConfirmWipe(false);
+    // el ranking online también vuelve a cero
+    void syncScores();
   };
 
   return (
@@ -1285,7 +1287,7 @@ function Game() {
                 ) : (
                   <div>
                     <div className="mb-2 text-center text-sm font-bold text-white">
-                      ¿Seguro? Se borrarán tus pastelitos, personajes y récords.
+                      ¿Seguro? Se borrarán tus pastelitos, personajes y récords (también en el ranking online).
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => setConfirmWipe(false)} className="flex-1 rounded-xl bg-white/20 px-3 py-2 font-black text-white">Cancelar</button>
