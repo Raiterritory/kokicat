@@ -3,6 +3,8 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+/* Pantalla horizontal y baja (teléfono acostado): menús en dos columnas */
+@custom-variant short (@media (orientation: landscape) and (max-height: 540px));
 
 /*
  * Design system definition.

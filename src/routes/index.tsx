@@ -60,6 +60,11 @@ export const Route = createFileRoute("/")({
 const GRAVITY = 0.5;
 const JUMP = -8.4;
 const MAX_FALL = 12;
+// Mundo fijo horizontal 16:9, igual en teléfono, tablet y PC: las tuberías, sus huecos
+// y el momento en que llegan son los mismos en todas las pantallas (justo en el multijugador).
+// Se escala para llenar la pantalla; si la forma no calza, el sobrante queda como franjas.
+const WORLD_W = 1066;
+const WORLD_H = 600;
 const PIPE_W = 70;
 const GAP = 205;
 const PIPE_SPEED = 2.5;      // velocidad base
@@ -164,6 +169,15 @@ function Game() {
   const [showBoard, setShowBoard] = useState(false);
   const [pickMode, setPickMode] = useState(false);
   const [boardTab, setBoardTab] = useState<BoardTab>("global");
+  // KokiCat se juega en horizontal: en un teléfono vertical (navegador) se pide girarlo
+  const [portrait, setPortrait] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(orientation: portrait) and (pointer: coarse)");
+    const update = () => setPortrait(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
   useEffect(() => {
     void syncScores();
     const onOnline = () => void syncScores();
@@ -203,7 +217,9 @@ function Game() {
   const bossRngRef = useRef<() => number>(Math.random);
   const mp = useMp();
 
-  const sizeRef = useRef({ w: 400, h: 600 });
+  const sizeRef = useRef({ w: WORLD_W, h: WORLD_H });
+  // tamaño real de la pantalla (CSS px) y densidad de pixeles
+  const viewRef = useRef({ w: 400, h: 600, dpr: 1 });
   const [size, setSize] = useState({ w: 400, h: 600 });
 
   const gameRef = useRef({
@@ -258,8 +274,9 @@ function Game() {
     const updateSize = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      sizeRef.current = { w, h };
-      setSize({ w, h });
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      viewRef.current = { w, h, dpr };
+      setSize({ w: Math.round(w * dpr), h: Math.round(h * dpr) });
     };
     updateSize();
     window.addEventListener("resize", updateSize);
@@ -407,6 +424,31 @@ function Game() {
       lastTime = now || lastTime;
       const { w: WIDTH, h: HEIGHT } = sizeRef.current;
       const g = gameRef.current;
+
+      // Escala del mundo fijo a la pantalla real, centrado
+      const view = viewRef.current;
+      const scale = Math.min(view.w / WIDTH, view.h / HEIGHT);
+      const offX = (view.w - WIDTH * scale) / 2;
+      const offY = (view.h - HEIGHT * scale) / 2;
+      ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+      if (offX > 0.5 || offY > 0.5) {
+        // franjas sobrantes: el mismo cielo y suelo, un poco más oscuros
+        const bars = ctx.createLinearGradient(0, offY, 0, offY + HEIGHT * scale);
+        bars.addColorStop(0, "#1a2947");
+        bars.addColorStop(0.5, "#4a5f8a");
+        bars.addColorStop(1, "#f4a06a");
+        ctx.fillStyle = bars;
+        ctx.fillRect(0, 0, view.w, view.h);
+        ctx.fillStyle = "#2a2a30";
+        ctx.fillRect(0, offY + (HEIGHT - GROUND_H) * scale, view.w, view.h);
+        ctx.fillStyle = "rgba(0,0,0,0.4)";
+        ctx.fillRect(0, 0, view.w, view.h);
+      }
+      ctx.setTransform(view.dpr * scale, 0, 0, view.dpr * scale, view.dpr * offX, view.dpr * offY);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, WIDTH, HEIGHT);
+      ctx.clip();
 
       const grad = ctx.createLinearGradient(0, 0, 0, HEIGHT);
       grad.addColorStop(0, "#1a2947");
@@ -899,6 +941,7 @@ function Game() {
         }
       }
 
+      ctx.restore();
 
       raf = requestAnimationFrame(draw);
     };
@@ -1001,17 +1044,20 @@ function Game() {
 
         {state === "menu" && (
           <Overlay>
-            <div className="flex flex-col items-center gap-4 px-6 text-center w-full max-w-sm">
+            <div className="flex w-full max-w-sm flex-col items-center gap-4 px-6 text-center short:max-w-3xl short:flex-row short:gap-8">
+              <div className="flex w-full flex-col items-center gap-4 short:w-1/2">
               <img
                 src={menuLogo.url}
                 alt="Estamos aqui con Koki"
                 onClick={(e) => { e.stopPropagation(); playLogoSound(); }}
-                className="w-full max-w-[300px] cursor-pointer select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform active:scale-95"
+                className="w-full max-w-[300px] short:max-w-[260px] cursor-pointer select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform active:scale-95"
                 style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }}
               />
               <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5 text-white font-bold text-sm backdrop-blur">
                 <span>🧁</span><span>{coins} pastelitos</span>
               </div>
+              </div>
+              <div className="flex w-full flex-col items-center gap-4 short:w-1/2 short:gap-3">
               <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(true); }}
                 className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-10 py-4 text-2xl font-black tracking-wide text-white shadow-[0_6px_0_rgb(127_29_29),0_10px_20px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29),0_4px_10px_rgba(0,0,0,0.4)]"
@@ -1041,6 +1087,7 @@ function Game() {
                 <span>🏆 Normal: {best}</span>
                 <span>🔥 Difícil: {bestHard}</span>
               </div>
+              </div>
             </div>
           </Overlay>
         )}
@@ -1052,7 +1099,7 @@ function Game() {
             onClick={(e) => { e.stopPropagation(); setPickMode(false); }}
           >
             <div
-              className="flex w-full max-w-sm flex-col gap-3 rounded-3xl border-2 border-white/10 bg-gradient-to-b from-indigo-900 to-slate-900 p-5 shadow-2xl"
+              className="flex max-h-[92vh] w-full max-w-sm flex-col gap-3 overflow-y-auto rounded-3xl border-2 border-white/10 bg-gradient-to-b from-indigo-900 to-slate-900 p-5 shadow-2xl short:gap-2 short:p-4"
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-center text-2xl font-black text-white">Elige el modo</h2>
@@ -1220,6 +1267,18 @@ function Game() {
 
         <MultiplayerLayer onExit={goToMenu} />
 
+        {portrait && (
+          <div
+            className="absolute inset-0 z-[60] flex flex-col items-center justify-center gap-4 bg-slate-900 px-8 text-center text-white"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-6xl" style={{ animation: "koki-rotate-hint 1.8s ease-in-out infinite" }}>📱</div>
+            <div className="text-2xl font-black">Gira tu teléfono</div>
+            <div className="text-sm text-white/70">KokiCat se juega en horizontal</div>
+          </div>
+        )}
+
         {showSettings && (
           <Overlay>
             <div
@@ -1346,6 +1405,10 @@ function Game() {
         )}
       </div>
       <style>{`
+        @keyframes koki-rotate-hint {
+          0%, 20% { transform: rotate(0deg); }
+          60%, 100% { transform: rotate(-90deg); }
+        }
         @keyframes koki-logo-bob {
           0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
           50% { transform: translateY(-8px) rotate(1.5deg) scale(1.03); }
@@ -1357,9 +1420,10 @@ function Game() {
 }
 
 function Overlay({ children }: { children: React.ReactNode }) {
+  // desplazable: en una pantalla horizontal baja el contenido puede no caber
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-black/25 p-4">
-      {children}
+    <div className="absolute inset-0 overflow-y-auto bg-black/25">
+      <div className="flex min-h-full items-center justify-center p-4">{children}</div>
     </div>
   );
 }
