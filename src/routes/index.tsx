@@ -25,7 +25,7 @@ import {
   type BossState,
 } from "@/lib/bossfight";
 import { drawSkinCharacter, SkinPreview, type SkinFx } from "@/lib/character-skins";
-import { syncScores, loadRivals, type BoardRow } from "@/lib/leaderboard";
+import { syncScores, syncScoresExact, loadRivals, type BoardRow } from "@/lib/leaderboard";
 import { LeaderboardModal, GameOverFriends, type Tab as BoardTab } from "@/lib/leaderboard-ui";
 import {
   useMp, getMp, ghosts, initLobby, setRoundStarter, reportPos, reportDead, seededRandom,
@@ -157,6 +157,7 @@ function Game() {
   const [debugMsg, setDebugMsg] = useState("");
   const [debugOpen, setDebugOpen] = useState(false);
   const [confirmWipe, setConfirmWipe] = useState(false);
+  const [wipeMsg, setWipeMsg] = useState("");
   const [showBoard, setShowBoard] = useState(false);
   const [pickMode, setPickMode] = useState(false);
   const [boardTab, setBoardTab] = useState<BoardTab>("global");
@@ -953,7 +954,13 @@ function Game() {
     setBest(0); setBestHard(0);
     setConfirmWipe(false);
     // el ranking online también vuelve a cero
-    void syncScores();
+    setWipeMsg("⏳ Reiniciando también el ranking online…");
+    void syncScoresExact().then((r) => setWipeMsg(
+      r === "exact" ? "✅ Datos borrados, también en el ranking online"
+        : r === "maxOnly" ? "⚠️ Datos borrados en este teléfono, pero el ranking online no puede bajar hasta que se active la actualización del servidor"
+        : r === "noPlayer" ? "✅ Datos borrados"
+        : "⚠️ Datos borrados. Sin conexión: el ranking online se actualizará después",
+    ));
   };
 
   return (
@@ -1284,7 +1291,11 @@ function Game() {
                   >
                     🗑️ Borrar datos guardados
                   </button>
-                ) : (
+                ) : null}
+                {wipeMsg && !confirmWipe && (
+                  <div className="mt-2 text-center text-xs font-bold text-white/85">{wipeMsg}</div>
+                )}
+                {confirmWipe && (
                   <div>
                     <div className="mb-2 text-center text-sm font-bold text-white">
                       ¿Seguro? Se borrarán tus pastelitos, personajes y récords (también en el ranking online).

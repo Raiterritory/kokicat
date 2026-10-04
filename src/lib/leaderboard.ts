@@ -60,8 +60,13 @@ export async function deletePlayer(): Promise<{ ok: boolean; error?: string }> {
  * the set_score function (migration 0002) is not on the server yet.
  */
 export async function syncScores(): Promise<boolean> {
+  return (await syncScoresExact()) !== "error";
+}
+
+/** "exact": server now matches this device; "maxOnly": server can only raise scores (set_score missing). */
+export async function syncScoresExact(): Promise<"exact" | "maxOnly" | "error" | "noPlayer"> {
   const p = getPlayer();
-  if (!p) return false;
+  if (!p) return "noPlayer";
   const args = {
     p_id: p.id,
     p_secret: p.secret,
@@ -71,10 +76,10 @@ export async function syncScores(): Promise<boolean> {
   const { error } = await (supabase.rpc as unknown as (
     fn: string, a: Record<string, unknown>,
   ) => Promise<{ error: { message: string } | null }>)("set_score", args);
-  if (!error) return true;
-  if (!/set_score|function|schema cache/i.test(error.message)) return false;
+  if (!error) return "exact";
+  if (!/set_score|function|schema cache/i.test(error.message)) return "error";
   const fallback = await supabase.rpc("submit_score", args);
-  return !fallback.error;
+  return fallback.error ? "error" : "maxOnly";
 }
 
 export async function globalBoard(mode: BoardMode): Promise<BoardRow[] | null> {
