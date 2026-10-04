@@ -1028,7 +1028,7 @@ function Game() {
                 <img src={claudeIcon} alt="Claude" className="h-8 w-8 rounded-lg" />
                 <div className="text-[11px] font-semibold leading-tight text-white/85">
                   <div className="text-[9px] uppercase tracking-widest text-white/60">Créditos</div>
-                  Hecho con Claude y la mente de la Ramona
+                  Claude y la mente de la Ramona
                 </div>
                 <img src={ramonaImg} alt="La Ramona" className="h-14 w-auto" />
               </div>
