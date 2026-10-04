@@ -14,13 +14,146 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      friendships: {
+        Row: {
+          accepted: boolean
+          addressee: string
+          created_at: string
+          requester: string
+        }
+        Insert: {
+          accepted?: boolean
+          addressee: string
+          created_at?: string
+          requester: string
+        }
+        Update: {
+          accepted?: boolean
+          addressee?: string
+          created_at?: string
+          requester?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "friendships_addressee_fkey"
+            columns: ["addressee"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "friendships_requester_fkey"
+            columns: ["requester"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      players: {
+        Row: {
+          best_hard: number
+          best_normal: number
+          created_at: string
+          id: string
+          nickname: string
+          secret: string
+          updated_at: string
+        }
+        Insert: {
+          best_hard?: number
+          best_normal?: number
+          created_at?: string
+          id?: string
+          nickname: string
+          secret?: string
+          updated_at?: string
+        }
+        Update: {
+          best_hard?: number
+          best_normal?: number
+          created_at?: string
+          id?: string
+          nickname?: string
+          secret?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      _auth_player: {
+        Args: { p_id: string; p_secret: string }
+        Returns: undefined
+      }
+      friends_leaderboard: {
+        Args: { p_id: string; p_mode: string; p_secret: string }
+        Returns: {
+          id: string
+          nickname: string
+          score: number
+        }[]
+      }
+      global_leaderboard: {
+        Args: { p_limit?: number; p_mode: string }
+        Returns: {
+          id: string
+          nickname: string
+          score: number
+        }[]
+      }
+      my_friends: {
+        Args: { p_id: string; p_secret: string }
+        Returns: {
+          id: string
+          nickname: string
+          status: string
+        }[]
+      }
+      register_player: {
+        Args: { p_nick: string }
+        Returns: {
+          id: string
+          nickname: string
+          secret: string
+        }[]
+      }
+      remove_friend: {
+        Args: { p_id: string; p_other: string; p_secret: string }
+        Returns: undefined
+      }
+      respond_friend_request: {
+        Args: {
+          p_accept: boolean
+          p_from: string
+          p_id: string
+          p_secret: string
+        }
+        Returns: undefined
+      }
+      search_players: {
+        Args: { p_id: string; p_query: string; p_secret: string }
+        Returns: {
+          id: string
+          nickname: string
+        }[]
+      }
+      send_friend_request: {
+        Args: { p_id: string; p_secret: string; p_to: string }
+        Returns: undefined
+      }
+      submit_score: {
+        Args: {
+          p_hard: number
+          p_id: string
+          p_normal: number
+          p_secret: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
