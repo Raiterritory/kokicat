@@ -69,6 +69,10 @@ const PIPE_W = 70;
 const GAP = 205;
 const PIPE_SPEED = 2.5;      // velocidad base
 const PIPE_INTERVAL = 112; // frames between pipes (mayor = tubos mas separados)
+// Koki a la izquierda, casi al centro: se ve mejor en horizontal y las tuberías llegan antes
+const KOKI_X = 330;
+// la primera tubería sale apenas empieza la partida
+const FIRST_PIPE_DIST = PIPE_INTERVAL * PIPE_SPEED;
 const KOKI_SIZE = 64;
 const GROUND_H = 40;
 const COIN_SIZE = 36;
@@ -235,7 +239,7 @@ function Game() {
     sinceGolden: 0,
     speed: PIPE_SPEED,
     scroll: 0,
-    spawnDist: 0,
+    spawnDist: FIRST_PIPE_DIST,
     boss: null as BossState | null,
     nextBoss: BOSS_EVERY,
     bossSkin: 0,
@@ -293,7 +297,7 @@ function Game() {
       y: h / 2, vy: 0, pipes: [], coins: [],
       frame: 0, score: 0, rot: 0, flap: 0, runCoins: 0,
       particles: [], trail: [], goldens: [], magnet: 0, sinceGolden: 0,
-      speed: PIPE_SPEED, scroll: 0, spawnDist: 0,
+      speed: PIPE_SPEED, scroll: 0, spawnDist: FIRST_PIPE_DIST,
       boss: null, nextBoss: BOSS_EVERY, bossSkin: 0,
     };
     setScore(0);
@@ -355,7 +359,7 @@ function Game() {
     setState("playing");
     gameRef.current.vy = JUMP;
     gameRef.current.flap = 1;
-    spawnPuff(80, gameRef.current.y + 10);
+    spawnPuff(KOKI_X, gameRef.current.y + 10);
     playFlap();
   }, [kickMusic]);
 
@@ -369,7 +373,7 @@ function Game() {
       gameRef.current.vy = JUMP;
       gameRef.current.rot = -0.45;
       gameRef.current.flap = 1;
-      spawnPuff(80, gameRef.current.y + 10);
+      spawnPuff(KOKI_X, gameRef.current.y + 10);
       playFlap();
     } else if (s === "over") {
       if (getMp().match) return;
@@ -528,7 +532,7 @@ function Game() {
         g.goldens.forEach((gd) => { gd.x -= g.speed; gd.bob += 0.09; });
         g.goldens = g.goldens.filter((gd) => gd.x + GOLDEN_SIZE > 0 && !gd.taken);
 
-        const kx = 80;
+        const kx = KOKI_X;
         const ky = g.y;
         const r = KOKI_SIZE / 2 - 6;
         if (ky + r > HEIGHT - GROUND_H || ky - r < 0) endGame();
@@ -619,7 +623,7 @@ function Game() {
 
       // --- Nyan-style rainbow trail following the character ---
       g.trail.forEach((t) => (t.x -= g.speed));
-      g.trail.push({ x: 80, y: g.y });
+      g.trail.push({ x: KOKI_X, y: g.y });
       g.trail = g.trail.filter((t) => t.x > -30);
       if (g.trail.length > 2) {
         const bands = ["#ff2d2d", "#ff9a2d", "#ffe62d", "#3ddc4a", "#2d9bff", "#a44bff"];
@@ -721,7 +725,7 @@ function Game() {
         ctx.strokeStyle = "#ffd45e";
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(80, g.y, MAGNET_RADIUS * (0.75 + t * 0.25), 0, Math.PI * 2);
+        ctx.arc(KOKI_X, g.y, MAGNET_RADIUS * (0.75 + t * 0.25), 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
@@ -750,14 +754,14 @@ function Game() {
           ctx.globalAlpha = 0.4;
           if (gImg && gImg.complete) {
             ctx.save();
-            ctx.translate(80, gh.dy);
+            ctx.translate(KOKI_X, gh.dy);
             ctx.rotate(gh.rot);
             ctx.drawImage(gImg, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
             ctx.restore();
           }
           ctx.globalAlpha = 0.75;
           ctx.fillStyle = "#fff";
-          ctx.fillText(`${gh.nickname} · ${gh.score}`, 80, gh.dy - KOKI_SIZE / 2 - 4);
+          ctx.fillText(`${gh.nickname} · ${gh.score}`, KOKI_X, gh.dy - KOKI_SIZE / 2 - 4);
         }
         ctx.restore();
         if (stateRef.current === "playing" && g.frame % 8 === 0) reportPos(g.y / HEIGHT, g.rot, g.score);
@@ -768,13 +772,13 @@ function Game() {
       // Taz Fuego deja llamas; Taz Hielo, destellos de escarcha
       if (selChar?.fx === "fuego" && g.frame % 2 === 0) {
         g.particles.push({
-          x: 80 + (Math.random() - 0.5) * 30, y: g.y + (Math.random() - 0.3) * 30,
+          x: KOKI_X + (Math.random() - 0.5) * 30, y: g.y + (Math.random() - 0.3) * 30,
           vx: -g.speed * 0.5 - Math.random(), vy: -1 - Math.random() * 1.2,
           life: 26, maxLife: 26, size: 5 + Math.random() * 5, color: "#ff7a00", kind: "flame",
         });
       } else if (selChar?.fx === "hielo" && g.frame % 5 === 0) {
         g.particles.push({
-          x: 80 + (Math.random() - 0.5) * 40, y: g.y + (Math.random() - 0.5) * 40,
+          x: KOKI_X + (Math.random() - 0.5) * 40, y: g.y + (Math.random() - 0.5) * 40,
           vx: -g.speed * 0.5, vy: (Math.random() - 0.5) * 0.6,
           life: 30, maxLife: 30, size: 3 + Math.random() * 3,
           color: Math.random() < 0.5 ? "#ffffff" : "#9be7ff", kind: "star",
@@ -792,7 +796,7 @@ function Game() {
         if (flapPulse > 0.2) {
           ctx.save();
           ctx.globalAlpha = flapPulse * 0.35;
-          ctx.translate(80 - 12, g.y + 4);
+          ctx.translate(KOKI_X - 12, g.y + 4);
           ctx.rotate(g.rot + extraRot);
           ctx.scale(scaleX, scaleY);
           if (skinFilter) ctx.filter = skinFilter;
@@ -805,7 +809,7 @@ function Game() {
         }
 
         ctx.save();
-        ctx.translate(80, g.y);
+        ctx.translate(KOKI_X, g.y);
         ctx.rotate(g.rot + extraRot);
         ctx.scale(scaleX, scaleY);
         if (skinFilter) ctx.filter = skinFilter;
@@ -865,7 +869,7 @@ function Game() {
             ctx.setLineDash([]);
             ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.arc(80, s.y, 13 + Math.sin(s.t * 0.35) * 2, 0, Math.PI * 2);
+            ctx.arc(KOKI_X, s.y, 13 + Math.sin(s.t * 0.35) * 2, 0, Math.PI * 2);
             ctx.stroke();
             ctx.restore();
           } else {
