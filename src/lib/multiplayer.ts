@@ -6,6 +6,7 @@ import { useSyncExternalStore } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { getPlayer, type BoardMode } from "./leaderboard";
+import { ensureNotifyPermission, notifyChallenge } from "./notify";
 
 export type Who = { id: string; nickname: string };
 export type Invite = { room: string; mode: BoardMode; rounds: number; from: Who; others: Who[] };
@@ -95,6 +96,8 @@ export function initLobby() {
   if (lobby) void supabase.removeChannel(lobby);
   lobbyFor = me.id;
   self = { id: me.id, nickname: me.nickname };
+  // quien tiene usuario online puede recibir retos: pedir permiso de notificaciones
+  void ensureNotifyPermission();
   const ch = supabase.channel("koki-lobby", { config: { presence: { key: me.id } } });
   ch.on("presence", { event: "sync" }, () => set({ online: Object.keys(ch.presenceState()) }))
     .on("broadcast", { event: "invite" }, ({ payload }) => onInvite(payload))
@@ -115,6 +118,8 @@ function onInvite(p: { room: string; mode: BoardMode; rounds: number; from: Who;
   }
   set({ incoming: { room: p.room, mode: p.mode, rounds: p.rounds, from: p.from, others: p.to.filter((t) => t.id !== me.id) } });
   setTimeout(() => { if (state.incoming?.room === p.room) set({ incoming: null }); }, INVITE_MS);
+  const players = p.to.length + 1;
+  void notifyChallenge(p.from.nickname, `${p.mode === "hard" ? "🔥 Difícil" : "Normal"} · ${p.rounds} rondas · ${players} jugadores`);
 }
 
 function onReply(p: { room: string; from: string; accept: boolean }) {

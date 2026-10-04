@@ -16,6 +16,7 @@
     "@capacitor/android": "^8.5.2",
     "@capacitor/core": "^8.5.2",
     "@capacitor/filesystem": "^8.1.4",
+    "@capacitor/local-notifications": "^8",
     "@capacitor/share": "^8.0.3",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",

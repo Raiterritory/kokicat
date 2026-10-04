@@ -8,5 +8,11 @@
   },
   "server": {
     "androidScheme": "https"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_koki",
+      "iconColor": "#ff5a5f"
+    }
   }
 }
