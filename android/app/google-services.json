@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "481452234611",
+    "project_id": "kokicat",
+    "storage_bucket": "kokicat.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:481452234611:android:5c0a20bbc226b23113d706",
+        "android_client_info": {
+          "package_name": "app.kokicat.game"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYMGhRDgn8C4THnN38WU1ncqM6KGxOrhU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
