@@ -1,6 +1,7 @@
 // Simple WebAudio-generated sound effects + background music for Koki.
 import bgmAsset from "@/assets/background-music.mp3.asset.json";
 import logoAsset from "@/assets/logo-sound.mp3.asset.json";
+import bossStartUrl from "@/assets/boss-start.mp3";
 
 let ctx: AudioContext | null = null;
 
@@ -145,6 +146,21 @@ export function playMeow() {
 let logoEl: HTMLAudioElement | null = null;
 
 /** Plays the uploaded Koki jingle when tapping the menu logo. */
+let bossStartEl: HTMLAudioElement | null = null;
+
+/** Played when a boss fight begins. */
+export function playBossStart() {
+  if (typeof window === "undefined" || sfxVolume <= 0) return;
+  if (!bossStartEl) {
+    bossStartEl = new Audio(bossStartUrl);
+    bossStartEl.preload = "auto";
+  }
+  bossStartEl.currentTime = 0;
+  bossStartEl.volume = sfxVolume;
+  const p = bossStartEl.play();
+  if (p && typeof p.catch === "function") p.catch(() => {});
+}
+
 export function playLogoSound() {
   if (typeof window === "undefined" || sfxVolume <= 0) return;
   if (!logoEl) {

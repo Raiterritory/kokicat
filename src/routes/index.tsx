@@ -2,11 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
 import kokiAsset from "@/assets/koki-real.png.asset.json";
 import menuLogo from "@/assets/koki-menu-logo.png.asset.json";
-import tazAsset from "@/assets/taz.png.asset.json";
+import gatoNegroPng from "@/assets/gato-negro.png";
 import gufiAsset from "@/assets/gufi.png.asset.json";
 import ratonAsset from "@/assets/raton.png.asset.json";
 import pastelitoImg from "@/assets/pastelito.png";
 import bossPng from "@/assets/boss.png";
+import bossLenguaPng from "@/assets/boss-lengua.png";
+import bossLentesPng from "@/assets/boss-lentes.png";
+import bossGafasPng from "@/assets/boss-gafas.png";
+
+// Jefes posibles: cada 15 puntos sale uno al azar
+const BOSS_IMAGES = [bossPng, bossLenguaPng, bossLentesPng, bossGafasPng];
 import {
   BEAM_FRAMES,
   BEAM_H,
@@ -26,7 +32,7 @@ import {
 } from "@/lib/multiplayer";
 import { MultiplayerLayer } from "@/lib/multiplayer-ui";
 import {
-  playFlap, playMeow, playLogoSound,
+  playFlap, playMeow, playLogoSound, playBossStart,
   startMusic, setMusicVolume, setSfxVolume,
   getMusicVolume, getSfxVolume,
 } from "@/lib/sounds";
@@ -94,7 +100,7 @@ type Character = {
 const CHARACTERS: Character[] = [
   // base
   { id: "koki", name: "Koki", url: kokiAsset.url, price: 0, base: "koki" },
-  { id: "taz", name: "Taz", url: tazAsset.url, price: 60, base: "taz" },
+  { id: "taz", name: "Taz", url: gatoNegroPng, price: 60, base: "taz" },
   { id: "gufi", name: "Gufi", url: gufiAsset.url, price: 60, base: "gufi" },
   { id: "raton", name: "Ratón", url: ratonAsset.url, price: 120, base: "raton" },
 
@@ -105,9 +111,9 @@ const CHARACTERS: Character[] = [
   { id: "koki-dorado", name: "Koki Dorado", url: kokiAsset.url, price: 800, base: "koki", filter: "sepia(1) saturate(6) hue-rotate(-15deg) brightness(1.1)" },
 
   // variantes de Taz
-  { id: "taz-violeta", name: "Taz Violeta", url: tazAsset.url, price: 250, base: "taz", filter: "hue-rotate(265deg) saturate(1.8) brightness(1.15)" },
-  { id: "taz-fuego", name: "Taz Fuego", url: tazAsset.url, price: 450, base: "taz", filter: "sepia(1) saturate(5) hue-rotate(-25deg) brightness(1.2)" },
-  { id: "taz-hielo", name: "Taz Hielo", url: tazAsset.url, price: 600, base: "taz", filter: "hue-rotate(175deg) saturate(2) brightness(1.35)" },
+  { id: "taz-violeta", name: "Taz Violeta", url: gatoNegroPng, price: 250, base: "taz", filter: "hue-rotate(265deg) saturate(1.8) brightness(1.15)" },
+  { id: "taz-fuego", name: "Taz Fuego", url: gatoNegroPng, price: 450, base: "taz", filter: "sepia(1) saturate(5) hue-rotate(-25deg) brightness(1.2)" },
+  { id: "taz-hielo", name: "Taz Hielo", url: gatoNegroPng, price: 600, base: "taz", filter: "hue-rotate(175deg) saturate(2) brightness(1.35)" },
 
   // variantes de Gufi
   { id: "gufi-crema", name: "Gufi Crema", url: gufiAsset.url, price: 250, base: "gufi", filter: "saturate(0.5) brightness(1.35)" },
@@ -175,6 +181,7 @@ function Game() {
   modeRef.current = mode;
   const rivalsRef = useRef<BoardRow[]>([]);
   const rngRef = useRef<() => number>(Math.random);
+  const bossRngRef = useRef<() => number>(Math.random);
   const mp = useMp();
 
   const sizeRef = useRef({ w: 400, h: 600 });
@@ -196,6 +203,7 @@ function Game() {
     spawnDist: 0,
     boss: null as BossState | null,
     nextBoss: BOSS_EVERY,
+    bossSkin: 0,
   });
 
   useEffect(() => {
@@ -222,9 +230,11 @@ function Game() {
     const coinImg = new Image();
     coinImg.src = pastelitoImg;
     imgCacheRef.current["__coin"] = coinImg;
-    const bossImg = new Image();
-    bossImg.src = bossPng;
-    imgCacheRef.current["__boss"] = bossImg;
+    BOSS_IMAGES.forEach((src, i) => {
+      const bossImg = new Image();
+      bossImg.src = src;
+      imgCacheRef.current[`__boss${i}`] = bossImg;
+    });
 
     const updateSize = () => {
       const w = window.innerWidth;
@@ -248,7 +258,7 @@ function Game() {
       frame: 0, score: 0, rot: 0, flap: 0, runCoins: 0,
       particles: [], trail: [], goldens: [], magnet: 0, sinceGolden: 0,
       speed: PIPE_SPEED, scroll: 0, spawnDist: 0,
-      boss: null, nextBoss: BOSS_EVERY,
+      boss: null, nextBoss: BOSS_EVERY, bossSkin: 0,
     };
     setScore(0);
   };
@@ -299,6 +309,8 @@ function Game() {
     reset();
     rivalsRef.current = [];
     rngRef.current = seed == null ? Math.random : seededRandom(seed);
+    // En multijugador todos enfrentan los mismos jefes, en el mismo orden
+    bossRngRef.current = seed == null ? Math.random : seededRandom(seed ^ 0x5bd1e995);
     const runMode = modeRef.current;
     if (seed == null) {
       void loadRivals(runMode).then((r) => { if (modeRef.current === runMode) rivalsRef.current = r; });
@@ -509,7 +521,9 @@ function Game() {
         // --- JEFE: aparece cada BOSS_EVERY puntos ---
         if (!g.boss && g.score > 0 && g.score >= g.nextBoss) {
           g.boss = createBoss(WIDTH, HEIGHT);
+          g.bossSkin = Math.floor(bossRngRef.current() * BOSS_IMAGES.length);
           g.nextBoss = g.score + BOSS_EVERY;
+          playBossStart();
         }
         const b = g.boss;
         if (b) {
@@ -782,7 +796,7 @@ function Game() {
             ctx.restore();
           }
         }
-        const bImg = imgCacheRef.current["__boss"];
+        const bImg = imgCacheRef.current[`__boss${g.bossSkin}`];
         ctx.save();
         ctx.translate(bs.x, bs.y);
         ctx.rotate(Math.sin(g.frame * 0.05) * 0.08);
