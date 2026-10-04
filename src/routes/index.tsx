@@ -1012,7 +1012,7 @@ function Game() {
               <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(true); }}
                 className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-10 py-4 text-2xl font-black tracking-wide text-white shadow-[0_6px_0_rgb(127_29_29),0_10px_20px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29),0_4px_10px_rgba(0,0,0,0.4)]"
-                style={{ WebkitTextStroke: "1px rgba(0,0,0,0.3)" }}
+                style={{ textShadow: "0 2px 0 rgba(0,0,0,0.25), 0 0 2px rgba(0,0,0,0.35)" }}
               >
                 ▶ JUGAR
               </button>
