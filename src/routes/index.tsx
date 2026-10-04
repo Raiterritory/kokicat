@@ -7,6 +7,8 @@ import gufiAsset from "@/assets/gufi.png.asset.json";
 import ratonAsset from "@/assets/raton.png.asset.json";
 import pastelitoImg from "@/assets/pastelito.png";
 import bossPng from "@/assets/boss.png";
+import claudeIcon from "@/assets/claude-icon.png";
+import ramonaImg from "@/assets/ramona.png";
 import bossLenguaPng from "@/assets/boss-lengua.png";
 import bossLentesPng from "@/assets/boss-lentes.png";
 import bossGafasPng from "@/assets/boss-gafas.png";
@@ -1021,6 +1023,14 @@ function Game() {
               <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-widest text-white/80">
                 <span>🏆 Normal: {best}</span>
                 <span>🔥 Difícil: {bestHard}</span>
+              </div>
+              <div className="mt-1 flex items-center gap-2 rounded-2xl bg-black/35 px-3 py-1.5 text-left backdrop-blur">
+                <img src={claudeIcon} alt="Claude" className="h-8 w-8 rounded-lg" />
+                <div className="text-[11px] font-semibold leading-tight text-white/85">
+                  <div className="text-[9px] uppercase tracking-widest text-white/60">Créditos</div>
+                  Hecho con Claude y la mente de la Ramona
+                </div>
+                <img src={ramonaImg} alt="La Ramona" className="h-14 w-auto" />
               </div>
             </div>
           </Overlay>
