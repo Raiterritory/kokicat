@@ -30,9 +30,10 @@ import { drawSkinCharacter, SkinPreview, type SkinFx } from "@/lib/character-ski
 import { syncScores, syncScoresExact, loadRivals, type BoardRow } from "@/lib/leaderboard";
 import { LeaderboardModal, GameOverFriends, type Tab as BoardTab } from "@/lib/leaderboard-ui";
 import {
-  useMp, getMp, ghosts, initLobby, setRoundStarter, reportPos, reportDead, seededRandom,
+  useMp, getMp, ghosts, initLobby, setRoundStarter, reportPos, reportDead, seededRandom, inviteFromPush,
 } from "@/lib/multiplayer";
 import { MultiplayerLayer } from "@/lib/multiplayer-ui";
+import { initPush } from "@/lib/push";
 import { SaveDataSection, OnlineAccountSection } from "@/lib/options-ui";
 import {
   playFlap, playMeow, playLogoSound, playBossStart,
@@ -363,6 +364,8 @@ function Game() {
   // Multiplayer: lobby connection + rounds started by the match host
   useEffect(() => {
     initLobby();
+    // notificaciones push: retos que llegan con la app cerrada
+    void initPush(inviteFromPush);
     window.addEventListener("koki-player", initLobby);
     setRoundStarter((seed, m) => {
       setShowBoard(false);

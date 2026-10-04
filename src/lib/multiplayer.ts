@@ -7,6 +7,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { getPlayer, type BoardMode } from "./leaderboard";
 import { ensureNotifyPermission, notifyChallenge } from "./notify";
+import { pushActive, pushChallenge, savePushToken } from "./push";
 
 export type Who = { id: string; nickname: string };
 export type Invite = { room: string; mode: BoardMode; rounds: number; from: Who; others: Who[] };
@@ -34,7 +35,8 @@ export type Ghost = { nickname: string; y: number; rot: number; score: number; a
 
 type State = { online: string[]; incoming: Invite | null; outgoing: Outgoing | null; match: Match | null; notice: string | null };
 
-const INVITE_MS = 30000;
+// 60 s: da tiempo a abrir la app desde la notificación aunque estuviera cerrada
+const INVITE_MS = 60000;
 const COUNTDOWN = 3;
 const NEXT_ROUND_MS = 4000;
 
@@ -98,6 +100,7 @@ export function initLobby() {
   self = { id: me.id, nickname: me.nickname };
   // quien tiene usuario online puede recibir retos: pedir permiso de notificaciones
   void ensureNotifyPermission();
+  void savePushToken();
   const ch = supabase.channel("koki-lobby", { config: { presence: { key: me.id } } });
   ch.on("presence", { event: "sync" }, () => set({ online: Object.keys(ch.presenceState()) }))
     .on("broadcast", { event: "invite" }, ({ payload }) => onInvite(payload))
@@ -119,6 +122,8 @@ function onInvite(p: { room: string; mode: BoardMode; rounds: number; from: Who;
   set({ incoming: { room: p.room, mode: p.mode, rounds: p.rounds, from: p.from, others: p.to.filter((t) => t.id !== me.id) } });
   setTimeout(() => { if (state.incoming?.room === p.room) set({ incoming: null }); }, INVITE_MS);
   const players = p.to.length + 1;
+  // con Firebase activo y la app en segundo plano, el sistema ya muestra el aviso push
+  if (pushActive() && typeof document !== "undefined" && document.visibilityState !== "visible") return;
   void notifyChallenge(p.from.nickname, `${p.mode === "hard" ? "🔥 Difícil" : "Normal"} · ${p.rounds} rondas · ${players} jugadores`);
 }
 
@@ -137,6 +142,7 @@ export function sendInvite(to: Who[], mode: BoardMode, rounds: number) {
   const room = randomId();
   set({ outgoing: { room, mode, rounds, to, replies: Object.fromEntries(to.map((t) => [t.id, "pending" as Reply])) } });
   void lobbySend("invite", { room, mode, rounds, from: { id: me.id, nickname: me.nickname }, to });
+  void pushChallenge(to.map((t) => t.id), room, mode, rounds);
   joinMatch(room, me.id, mode, rounds);
   setTimeout(() => {
     const o = state.outgoing;
@@ -162,6 +168,26 @@ export function acceptInvite() {
   set({ incoming: null });
   joinMatch(inv.room, inv.from.id, inv.mode, inv.rounds);
   void lobbySend("reply", { room: inv.room, from: me.id, accept: true });
+}
+
+/** Tapped a push notification (app may have been closed): show that challenge if it is still valid. */
+export function inviteFromPush(d: Record<string, string>) {
+  if (d.type !== "challenge" || !d.room || !d.fromId) return;
+  const age = Date.now() - Number(d.sentAt || 0);
+  if (!(age < INVITE_MS)) { notify("Ese reto ya expiró"); return; }
+  if (state.match || state.outgoing || state.incoming?.room === d.room) return;
+  let people: Who[] = [];
+  try { people = JSON.parse(d.players || "[]") as Who[]; } catch { /* sin lista */ }
+  set({
+    incoming: {
+      room: d.room,
+      mode: d.mode === "hard" ? "hard" : "normal",
+      rounds: Number(d.rounds) === 2 ? 2 : 3,
+      from: { id: d.fromId, nickname: d.fromName || "Un amigo" },
+      others: people.filter((p) => p.id !== self?.id),
+    },
+  });
+  setTimeout(() => { if (state.incoming?.room === d.room) set({ incoming: null }); }, INVITE_MS - age);
 }
 
 export function declineInvite() {

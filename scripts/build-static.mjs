@@ -62,6 +62,9 @@ const assets = {
 };
 
 async function main() {
+  // Push con Firebase solo si el APK lleva android/app/google-services.json
+  process.env.VITE_FCM_ENABLED = existsSync(join(ROOT, "android", "app", "google-services.json")) ? "true" : "false";
+  console.log(`Push Firebase: ${process.env.VITE_FCM_ENABLED === "true" ? "activado" : "sin google-services.json (desactivado)"}`);
   run("bun", ["run", "build"]);
   resolveBuildDirs();
 
