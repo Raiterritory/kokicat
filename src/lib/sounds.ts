@@ -36,12 +36,18 @@ function ensureBgm(): HTMLAudioElement | null {
   return bgmEl;
 }
 
-export function startMusic() {
+/** Starts the background music. Resolves false if the browser blocked it (no tap yet). */
+export function startMusic(): Promise<boolean> {
   const el = ensureBgm();
-  if (!el) return;
+  if (!el) return Promise.resolve(false);
   el.volume = musicVolume;
-  const p = el.play();
-  if (p && typeof p.catch === "function") p.catch(() => {});
+  if (!el.paused) return Promise.resolve(true);
+  try {
+    const p = el.play();
+    return p && typeof p.then === "function" ? p.then(() => true, () => false) : Promise.resolve(true);
+  } catch {
+    return Promise.resolve(false);
+  }
 }
 
 export function stopMusic() {

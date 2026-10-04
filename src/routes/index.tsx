@@ -171,11 +171,25 @@ function Game() {
   }, []);
   const musicStartedRef = useRef(false);
 
+  // Solo se marca como iniciada cuando de verdad suena; si el navegador la bloquea, se reintenta.
   const kickMusic = useCallback(() => {
     if (musicStartedRef.current) return;
-    musicStartedRef.current = true;
-    startMusic();
+    void startMusic().then((ok) => { if (ok) musicStartedRef.current = true; });
   }, []);
+
+  // Música apenas abre el juego. En la app de Android suena de inmediato; en el navegador,
+  // que exige un toque primero, arranca con el primer toque o tecla en cualquier parte.
+  useEffect(() => {
+    kickMusic();
+    const onFirstInput = () => {
+      kickMusic();
+      if (musicStartedRef.current) remove();
+    };
+    const events = ["pointerdown", "touchstart", "keydown"] as const;
+    const remove = () => events.forEach((ev) => window.removeEventListener(ev, onFirstInput, true));
+    events.forEach((ev) => window.addEventListener(ev, onFirstInput, true));
+    return remove;
+  }, [kickMusic]);
 
   const stateRef = useRef(state);
   stateRef.current = state;
