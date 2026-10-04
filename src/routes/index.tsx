@@ -70,7 +70,7 @@ const GAP = 205;
 const PIPE_SPEED = 2.5;      // velocidad base
 const PIPE_INTERVAL = 112; // frames between pipes (mayor = tubos mas separados)
 // Koki a la izquierda, casi al centro: se ve mejor en horizontal y las tuberías llegan antes
-const KOKI_X = 330;
+const KOKI_X = 450;
 // la primera tubería sale apenas empieza la partida
 const FIRST_PIPE_DIST = PIPE_INTERVAL * PIPE_SPEED;
 const KOKI_SIZE = 64;
