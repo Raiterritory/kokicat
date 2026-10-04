@@ -27,6 +27,7 @@ export async function registerPlayer(nick: string): Promise<{ player?: Player; e
   }
   const row = (data as Player[])[0];
   localStorage.setItem(KEY, JSON.stringify(row));
+  window.dispatchEvent(new Event("koki-player"));
   return { player: row };
 }
 

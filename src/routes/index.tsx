@@ -18,9 +18,13 @@ import {
   updateBoss,
   type BossState,
 } from "@/lib/bossfight";
-import { drawRainbowCharacter, rainbowMaskStyle } from "@/lib/character-skins";
+import { drawRainbowCharacter, RainbowSkin } from "@/lib/character-skins";
 import { syncScores, loadRivals, type BoardRow } from "@/lib/leaderboard";
-import { LeaderboardModal, GameOverFriends } from "@/lib/leaderboard-ui";
+import { LeaderboardModal, GameOverFriends, type Tab as BoardTab } from "@/lib/leaderboard-ui";
+import {
+  useMp, getMp, ghosts, initLobby, setRoundStarter, reportPos, reportDead, seededRandom,
+} from "@/lib/multiplayer";
+import { MultiplayerLayer } from "@/lib/multiplayer-ui";
 import {
   playFlap, playMeow, playLogoSound,
   startMusic, setMusicVolume, setSfxVolume,
@@ -148,6 +152,7 @@ function Game() {
   const [confirmWipe, setConfirmWipe] = useState(false);
   const [showBoard, setShowBoard] = useState(false);
   const [pickMode, setPickMode] = useState(false);
+  const [boardTab, setBoardTab] = useState<BoardTab>("global");
   useEffect(() => {
     void syncScores();
     const onOnline = () => void syncScores();
@@ -169,6 +174,8 @@ function Game() {
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const rivalsRef = useRef<BoardRow[]>([]);
+  const rngRef = useRef<() => number>(Math.random);
+  const mp = useMp();
 
   const sizeRef = useRef({ w: 400, h: 600 });
   const [size, setSize] = useState({ w: 400, h: 600 });
@@ -286,13 +293,16 @@ function Game() {
     }
   };
 
-  const startGame = useCallback((m?: Mode) => {
+  const startGame = useCallback((m?: Mode, seed?: number) => {
     kickMusic();
     if (m) { setMode(m); modeRef.current = m; }
     reset();
     rivalsRef.current = [];
+    rngRef.current = seed == null ? Math.random : seededRandom(seed);
     const runMode = modeRef.current;
-    void loadRivals(runMode).then((r) => { if (modeRef.current === runMode) rivalsRef.current = r; });
+    if (seed == null) {
+      void loadRivals(runMode).then((r) => { if (modeRef.current === runMode) rivalsRef.current = r; });
+    }
     gameRef.current.speed = modeRef.current === "hard" ? HARD_START : PIPE_SPEED;
     setState("playing");
     gameRef.current.vy = JUMP;
@@ -314,9 +324,26 @@ function Game() {
       spawnPuff(80, gameRef.current.y + 10);
       playFlap();
     } else if (s === "over") {
+      if (getMp().match) return;
       reset();
       setState("ready");
     }
+  }, [startGame]);
+
+  // Multiplayer: lobby connection + rounds started by the match host
+  useEffect(() => {
+    initLobby();
+    window.addEventListener("koki-player", initLobby);
+    setRoundStarter((seed, m) => {
+      setShowBoard(false);
+      setPickMode(false);
+      setShowSettings(false);
+      startGame(m, seed);
+    });
+    return () => {
+      window.removeEventListener("koki-player", initLobby);
+      setRoundStarter(null);
+    };
   }, [startGame]);
 
   useEffect(() => {
@@ -392,28 +419,30 @@ function Game() {
         if (g.boss) g.spawnDist = 0;
         if (g.spawnDist >= PIPE_INTERVAL * PIPE_SPEED) {
           g.spawnDist = 0;
-          const top = 60 + Math.random() * (HEIGHT - GAP - 180);
+          // rng: aleatorio en solitario, con semilla compartida en multijugador
+          const rng = rngRef.current;
+          const top = 60 + rng() * (HEIGHT - GAP - 180);
           g.pipes.push({ x: WIDTH, top, passed: false });
           g.sinceGolden++;
           // ~55% chance to spawn a coin between this pipe and the next
-          if (Math.random() < 0.55) {
+          if (rng() < 0.55) {
             const gapCenter = top + GAP / 2;
-            const jitter = (Math.random() - 0.5) * (GAP - 60);
+            const jitter = (rng() - 0.5) * (GAP - 60);
             g.coins.push({
               x: WIDTH + PIPE_W / 2 + 45,
               y: gapCenter + jitter,
               taken: false,
-              bob: Math.random() * Math.PI * 2,
+              bob: rng() * Math.PI * 2,
             });
           }
           // Koki dorado: raro, y nunca dos seguidos
-          if (g.sinceGolden >= GOLDEN_MIN_GAP && Math.random() < GOLDEN_CHANCE) {
+          if (g.sinceGolden >= GOLDEN_MIN_GAP && rng() < GOLDEN_CHANCE) {
             g.sinceGolden = 0;
             g.goldens.push({
               x: WIDTH + PIPE_W / 2 + 120,
-              y: top + GAP / 2 + (Math.random() - 0.5) * (GAP - 90),
+              y: top + GAP / 2 + (rng() - 0.5) * (GAP - 90),
               taken: false,
-              bob: Math.random() * Math.PI * 2,
+              bob: rng() * Math.PI * 2,
             });
           }
         }
@@ -629,7 +658,34 @@ function Game() {
         ctx.fillRect(i - off, HEIGHT - GROUND_H + 18, 16, 4);
       }
 
-      
+      // Multiplayer: other players as translucent ghosts with their nickname
+      const mpMatch = getMp().match;
+      if (mpMatch?.phase === "playing") {
+        const gImg = imgCacheRef.current["koki"];
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.font = "bold 12px system-ui, sans-serif";
+        for (const id in ghosts) {
+          const gh = ghosts[id];
+          if (!gh.alive) continue;
+          const ty = gh.y * HEIGHT;
+          gh.dy = gh.dy == null ? ty : gh.dy + (ty - gh.dy) * 0.25;
+          ctx.globalAlpha = 0.4;
+          if (gImg && gImg.complete) {
+            ctx.save();
+            ctx.translate(80, gh.dy);
+            ctx.rotate(gh.rot);
+            ctx.drawImage(gImg, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
+            ctx.restore();
+          }
+          ctx.globalAlpha = 0.75;
+          ctx.fillStyle = "#fff";
+          ctx.fillText(`${gh.nickname} · ${gh.score}`, 80, gh.dy - KOKI_SIZE / 2 - 4);
+        }
+        ctx.restore();
+        if (stateRef.current === "playing" && g.frame % 8 === 0) reportPos(g.y / HEIGHT, g.rot, g.score);
+      }
+
       const selChar = CHAR_BY_ID[selectedRef.current];
       const img = imgCacheRef.current[selChar?.base ?? "koki"] || imgCacheRef.current["koki"];
       if (img && img.complete) {
@@ -648,7 +704,7 @@ function Game() {
           ctx.scale(scaleX, scaleY);
           if (skinFilter) ctx.filter = skinFilter;
           if (selChar?.rainbow) {
-            drawRainbowCharacter(ctx, img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE, g.frame * 0.04);
+            drawRainbowCharacter(ctx, img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
           } else {
             ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
           }
@@ -661,7 +717,7 @@ function Game() {
         ctx.scale(scaleX, scaleY);
         if (skinFilter) ctx.filter = skinFilter;
         if (selChar?.rainbow) {
-          drawRainbowCharacter(ctx, img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE, g.frame * 0.04);
+          drawRainbowCharacter(ctx, img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
         } else {
           ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
         }
@@ -803,6 +859,7 @@ function Game() {
       localStorage.setItem("koki-coins", String(totalCoins));
       setCoins(totalCoins);
       void syncScores();
+      reportDead(g.score);
       setState("over");
     };
 
@@ -948,6 +1005,13 @@ function Game() {
                 <div className="text-xs font-bold text-white/85">Cada vez más rápido · Récord: {bestHard}</div>
               </button>
               <button
+                onClick={(e) => { e.stopPropagation(); setPickMode(false); setBoardTab("friends"); setShowBoard(true); }}
+                className="w-full rounded-2xl bg-gradient-to-b from-violet-400 to-indigo-600 px-6 py-4 text-left text-white shadow-[0_5px_0_rgb(49_46_129),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(49_46_129)]"
+              >
+                <div className="text-xl font-black">⚔️ CONTRA AMIGOS</div>
+                <div className="text-xs font-bold text-white/85">En vivo · 2 o 3 jugadores · 2 o 3 rondas</div>
+              </button>
+              <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(false); }}
                 className="mt-1 w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_4px_0_rgba(0,0,0,0.3)] active:translate-y-0.5"
               >
@@ -985,12 +1049,7 @@ function Game() {
                     >
                       <div className="relative h-20 w-20 flex items-center justify-center">
                         {c.rainbow && isUnlocked ? (
-                          <div
-                            role="img"
-                            aria-label={c.name}
-                            style={rainbowMaskStyle(c.url)}
-                            className="h-20 w-20 koki-rainbow-skin"
-                          />
+                          <RainbowSkin url={c.url} label={c.name} className="h-20 w-20" />
                         ) : (
                           <img
                             src={c.url}
@@ -1040,7 +1099,7 @@ function Game() {
           </Overlay>
         )}
 
-        {state === "over" && (
+        {state === "over" && !mp.match && (
           <Overlay>
             <div className="w-full max-w-sm rounded-3xl bg-gradient-to-b from-white to-slate-100 px-6 py-6 text-center shadow-2xl border-4 border-white/60">
               <div className="text-3xl font-black text-red-600 drop-shadow-sm">¡Game Over!</div>
@@ -1090,8 +1149,10 @@ function Game() {
         )}
 
         {showBoard && (
-          <LeaderboardModal initialMode={mode} onClose={() => setShowBoard(false)} />
+          <LeaderboardModal initialMode={mode} initialTab={boardTab} onClose={() => { setShowBoard(false); setBoardTab("global"); }} />
         )}
+
+        <MultiplayerLayer onExit={goToMenu} />
 
         {showSettings && (
           <Overlay>
@@ -1206,17 +1267,6 @@ function Game() {
         @keyframes koki-logo-bob {
           0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
           50% { transform: translateY(-8px) rotate(1.5deg) scale(1.03); }
-        }
-        @keyframes koki-rainbow-shift {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-        }
-        .koki-rainbow-skin {
-          background-size: 220% 220%;
-          animation: koki-rainbow-shift 2.4s linear infinite;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .koki-rainbow-skin { animation: none; }
         }
         html, body, #root { height: 100%; margin: 0; overscroll-behavior: none; }
       `}</style>

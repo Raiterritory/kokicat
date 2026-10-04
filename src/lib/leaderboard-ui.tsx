@@ -4,6 +4,7 @@ import {
   getPlayer, registerPlayer, syncScores, globalBoard, friendsBoard,
   searchPlayers, myFriends, sendRequest, respondRequest, removeFriend,
 } from "./leaderboard";
+import { ChallengeFriends } from "./multiplayer-ui";
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -58,11 +59,11 @@ function Rows({ rows, meId }: { rows: BoardRow[]; meId?: string }) {
   );
 }
 
-type Tab = "global" | "friends" | "add";
+export type Tab = "global" | "friends" | "add";
 
-export function LeaderboardModal({ initialMode, onClose }: { initialMode: BoardMode; onClose: () => void }) {
+export function LeaderboardModal({ initialMode, initialTab = "global", onClose }: { initialMode: BoardMode; initialTab?: Tab; onClose: () => void }) {
   const [player, setPlayer] = useState<Player | null>(null);
-  const [tab, setTab] = useState<Tab>("global");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [mode, setMode] = useState<BoardMode>(initialMode);
   const [rows, setRows] = useState<BoardRow[] | null>([]);
   const [loading, setLoading] = useState(false);
@@ -123,6 +124,7 @@ export function LeaderboardModal({ initialMode, onClose }: { initialMode: BoardM
               </div>
             )}
             <div className="flex-1 overflow-y-auto pr-1">
+              {tab === "friends" && <ChallengeFriends friends={friends} mode={mode} onSent={onClose} />}
               {tab === "friends" && incoming.length > 0 && (
                 <div className="mb-3 flex flex-col gap-1.5">
                   <div className="text-xs font-bold uppercase text-white/60">Solicitudes</div>
