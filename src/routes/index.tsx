@@ -69,10 +69,15 @@ const PIPE_W = 70;
 const GAP = 205;
 const PIPE_SPEED = 2.5;      // velocidad base
 const PIPE_INTERVAL = 112; // frames between pipes (mayor = tubos mas separados)
-// Koki a la izquierda, casi al centro: se ve mejor en horizontal y las tuberías llegan antes
-const KOKI_X = 450;
-// la primera tubería sale apenas empieza la partida
+// Posición de Koki: en vertical, pegado a la izquierda como siempre; en horizontal,
+// bastante cerca del centro para que se vea bien y las tuberías lleguen antes.
+const KOKI_X_PORTRAIT = 80;
+const KOKI_X_LANDSCAPE = 450;
+let kokiX = KOKI_X_PORTRAIT;
+let landscape = false;
+// en horizontal la primera tubería sale apenas empieza la partida (en vertical, como siempre)
 const FIRST_PIPE_DIST = PIPE_INTERVAL * PIPE_SPEED;
+const firstPipeDist = () => (landscape ? FIRST_PIPE_DIST : 0);
 const KOKI_SIZE = 64;
 const GROUND_H = 40;
 const COIN_SIZE = 36;
@@ -173,15 +178,6 @@ function Game() {
   const [showBoard, setShowBoard] = useState(false);
   const [pickMode, setPickMode] = useState(false);
   const [boardTab, setBoardTab] = useState<BoardTab>("global");
-  // KokiCat se juega en horizontal: en un teléfono vertical (navegador) se pide girarlo
-  const [portrait, setPortrait] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(orientation: portrait) and (pointer: coarse)");
-    const update = () => setPortrait(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
   useEffect(() => {
     void syncScores();
     const onOnline = () => void syncScores();
@@ -239,7 +235,7 @@ function Game() {
     sinceGolden: 0,
     speed: PIPE_SPEED,
     scroll: 0,
-    spawnDist: FIRST_PIPE_DIST,
+    spawnDist: 0,
     boss: null as BossState | null,
     nextBoss: BOSS_EVERY,
     bossSkin: 0,
@@ -280,6 +276,11 @@ function Game() {
       const h = window.innerHeight;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       viewRef.current = { w, h, dpr };
+      // Vertical: el mundo es la pantalla tal cual (como siempre).
+      // Horizontal: mundo fijo 16:9 escalado, igual en teléfono, tablet y PC.
+      landscape = w > h;
+      kokiX = landscape ? KOKI_X_LANDSCAPE : KOKI_X_PORTRAIT;
+      sizeRef.current = landscape ? { w: WORLD_W, h: WORLD_H } : { w, h };
       setSize({ w: Math.round(w * dpr), h: Math.round(h * dpr) });
     };
     updateSize();
@@ -297,7 +298,7 @@ function Game() {
       y: h / 2, vy: 0, pipes: [], coins: [],
       frame: 0, score: 0, rot: 0, flap: 0, runCoins: 0,
       particles: [], trail: [], goldens: [], magnet: 0, sinceGolden: 0,
-      speed: PIPE_SPEED, scroll: 0, spawnDist: FIRST_PIPE_DIST,
+      speed: PIPE_SPEED, scroll: 0, spawnDist: firstPipeDist(),
       boss: null, nextBoss: BOSS_EVERY, bossSkin: 0,
     };
     setScore(0);
@@ -359,7 +360,7 @@ function Game() {
     setState("playing");
     gameRef.current.vy = JUMP;
     gameRef.current.flap = 1;
-    spawnPuff(KOKI_X, gameRef.current.y + 10);
+    spawnPuff(kokiX, gameRef.current.y + 10);
     playFlap();
   }, [kickMusic]);
 
@@ -373,7 +374,7 @@ function Game() {
       gameRef.current.vy = JUMP;
       gameRef.current.rot = -0.45;
       gameRef.current.flap = 1;
-      spawnPuff(KOKI_X, gameRef.current.y + 10);
+      spawnPuff(kokiX, gameRef.current.y + 10);
       playFlap();
     } else if (s === "over") {
       if (getMp().match) return;
@@ -532,7 +533,7 @@ function Game() {
         g.goldens.forEach((gd) => { gd.x -= g.speed; gd.bob += 0.09; });
         g.goldens = g.goldens.filter((gd) => gd.x + GOLDEN_SIZE > 0 && !gd.taken);
 
-        const kx = KOKI_X;
+        const kx = kokiX;
         const ky = g.y;
         const r = KOKI_SIZE / 2 - 6;
         if (ky + r > HEIGHT - GROUND_H || ky - r < 0) endGame();
@@ -623,7 +624,7 @@ function Game() {
 
       // --- Nyan-style rainbow trail following the character ---
       g.trail.forEach((t) => (t.x -= g.speed));
-      g.trail.push({ x: KOKI_X, y: g.y });
+      g.trail.push({ x: kokiX, y: g.y });
       g.trail = g.trail.filter((t) => t.x > -30);
       if (g.trail.length > 2) {
         const bands = ["#ff2d2d", "#ff9a2d", "#ffe62d", "#3ddc4a", "#2d9bff", "#a44bff"];
@@ -725,7 +726,7 @@ function Game() {
         ctx.strokeStyle = "#ffd45e";
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(KOKI_X, g.y, MAGNET_RADIUS * (0.75 + t * 0.25), 0, Math.PI * 2);
+        ctx.arc(kokiX, g.y, MAGNET_RADIUS * (0.75 + t * 0.25), 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
@@ -754,14 +755,14 @@ function Game() {
           ctx.globalAlpha = 0.4;
           if (gImg && gImg.complete) {
             ctx.save();
-            ctx.translate(KOKI_X, gh.dy);
+            ctx.translate(kokiX, gh.dy);
             ctx.rotate(gh.rot);
             ctx.drawImage(gImg, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
             ctx.restore();
           }
           ctx.globalAlpha = 0.75;
           ctx.fillStyle = "#fff";
-          ctx.fillText(`${gh.nickname} · ${gh.score}`, KOKI_X, gh.dy - KOKI_SIZE / 2 - 4);
+          ctx.fillText(`${gh.nickname} · ${gh.score}`, kokiX, gh.dy - KOKI_SIZE / 2 - 4);
         }
         ctx.restore();
         if (stateRef.current === "playing" && g.frame % 8 === 0) reportPos(g.y / HEIGHT, g.rot, g.score);
@@ -772,13 +773,13 @@ function Game() {
       // Taz Fuego deja llamas; Taz Hielo, destellos de escarcha
       if (selChar?.fx === "fuego" && g.frame % 2 === 0) {
         g.particles.push({
-          x: KOKI_X + (Math.random() - 0.5) * 30, y: g.y + (Math.random() - 0.3) * 30,
+          x: kokiX + (Math.random() - 0.5) * 30, y: g.y + (Math.random() - 0.3) * 30,
           vx: -g.speed * 0.5 - Math.random(), vy: -1 - Math.random() * 1.2,
           life: 26, maxLife: 26, size: 5 + Math.random() * 5, color: "#ff7a00", kind: "flame",
         });
       } else if (selChar?.fx === "hielo" && g.frame % 5 === 0) {
         g.particles.push({
-          x: KOKI_X + (Math.random() - 0.5) * 40, y: g.y + (Math.random() - 0.5) * 40,
+          x: kokiX + (Math.random() - 0.5) * 40, y: g.y + (Math.random() - 0.5) * 40,
           vx: -g.speed * 0.5, vy: (Math.random() - 0.5) * 0.6,
           life: 30, maxLife: 30, size: 3 + Math.random() * 3,
           color: Math.random() < 0.5 ? "#ffffff" : "#9be7ff", kind: "star",
@@ -796,7 +797,7 @@ function Game() {
         if (flapPulse > 0.2) {
           ctx.save();
           ctx.globalAlpha = flapPulse * 0.35;
-          ctx.translate(KOKI_X - 12, g.y + 4);
+          ctx.translate(kokiX - 12, g.y + 4);
           ctx.rotate(g.rot + extraRot);
           ctx.scale(scaleX, scaleY);
           if (skinFilter) ctx.filter = skinFilter;
@@ -809,7 +810,7 @@ function Game() {
         }
 
         ctx.save();
-        ctx.translate(KOKI_X, g.y);
+        ctx.translate(kokiX, g.y);
         ctx.rotate(g.rot + extraRot);
         ctx.scale(scaleX, scaleY);
         if (skinFilter) ctx.filter = skinFilter;
@@ -869,7 +870,7 @@ function Game() {
             ctx.setLineDash([]);
             ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.arc(KOKI_X, s.y, 13 + Math.sin(s.t * 0.35) * 2, 0, Math.PI * 2);
+            ctx.arc(kokiX, s.y, 13 + Math.sin(s.t * 0.35) * 2, 0, Math.PI * 2);
             ctx.stroke();
             ctx.restore();
           } else {
@@ -1271,18 +1272,6 @@ function Game() {
 
         <MultiplayerLayer onExit={goToMenu} />
 
-        {portrait && (
-          <div
-            className="absolute inset-0 z-[60] flex flex-col items-center justify-center gap-4 bg-slate-900 px-8 text-center text-white"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-6xl" style={{ animation: "koki-rotate-hint 1.8s ease-in-out infinite" }}>📱</div>
-            <div className="text-2xl font-black">Gira tu teléfono</div>
-            <div className="text-sm text-white/70">KokiCat se juega en horizontal</div>
-          </div>
-        )}
-
         {showSettings && (
           <Overlay>
             <div
@@ -1409,10 +1398,6 @@ function Game() {
         )}
       </div>
       <style>{`
-        @keyframes koki-rotate-hint {
-          0%, 20% { transform: rotate(0deg); }
-          60%, 100% { transform: rotate(-90deg); }
-        }
         @keyframes koki-logo-bob {
           0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
           50% { transform: translateY(-8px) rotate(1.5deg) scale(1.03); }
