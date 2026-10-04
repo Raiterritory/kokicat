@@ -1038,14 +1038,6 @@ function Game() {
                 <span>🏆 Normal: {best}</span>
                 <span>🔥 Difícil: {bestHard}</span>
               </div>
-              <div className="mt-1 flex items-center gap-2 rounded-2xl bg-black/35 px-3 py-1.5 text-left backdrop-blur">
-                <img src={claudeIcon} alt="Claude" className="h-8 w-8 rounded-lg" />
-                <div className="text-[11px] font-semibold leading-tight text-white/85">
-                  <div className="text-[9px] uppercase tracking-widest text-white/60">Créditos</div>
-                  Claude y la mente de la Ramona
-                </div>
-                <img src={ramonaImg} alt="La Ramona" className="h-14 w-auto" />
-              </div>
             </div>
           </Overlay>
         )}
@@ -1337,6 +1329,15 @@ function Game() {
               >
                 Listo
               </button>
+
+              <div className="mt-5 flex items-center gap-3 rounded-2xl bg-black/30 px-3 py-2">
+                <img src={claudeIcon} alt="Claude" className="h-10 w-10 rounded-xl" />
+                <div className="flex-1 text-xs font-semibold leading-tight text-white/85">
+                  <div className="text-[10px] uppercase tracking-widest text-white/60">Créditos</div>
+                  Claude y la mente de la Ramona
+                </div>
+                <img src={ramonaImg} alt="La Ramona" className="h-16 w-auto" />
+              </div>
             </div>
           </Overlay>
         )}
