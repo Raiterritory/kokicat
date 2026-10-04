@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { BoardMode, FriendRow } from "./leaderboard";
 import {
   type Match, useMp, ghosts, activePlayers, standings,
-  sendInvite, cancelInvite, acceptInvite, declineInvite, leaveMatch, requestRematch,
+  sendInvite, cancelInvite, acceptInvite, declineInvite, leaveMatch, requestRematch, dismissRejected,
 } from "./multiplayer";
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation();
@@ -104,7 +104,7 @@ function useGhostTick(active: boolean) {
 
 /** All multiplayer overlays: invitations, waiting room, countdown, round results, final results. */
 export function MultiplayerLayer({ onExit }: { onExit: () => void }) {
-  const { incoming, outgoing, match: m, notice, online } = useMp();
+  const { incoming, outgoing, match: m, notice, online, rejected } = useMp();
   const waitingOthers = !!m && m.phase === "playing" && m.scores[m.me.id] != null;
   useGhostTick(waitingOthers);
   const exit = () => { leaveMatch(); onExit(); };
@@ -144,7 +144,7 @@ export function MultiplayerLayer({ onExit }: { onExit: () => void }) {
                     {outgoing.replies[t.id] === "pending" && !online.includes(t.id) && (
                       <span className="text-[10px] font-semibold text-white/60">📲 avisado</span>
                     )}
-                    <span>{outgoing.replies[t.id] === "accepted" ? "✅" : outgoing.replies[t.id] === "declined" ? "❌" : "⏳"}</span>
+                    <span>{outgoing.replies[t.id] === "accepted" ? "✅" : outgoing.replies[t.id] === "declined" ? "❌" : outgoing.replies[t.id] === "expired" ? "⌛" : "⏳"}</span>
                   </div>
                 ))}
                 <div className="mt-1 text-center text-xs text-white/60">Esperando respuestas… tienen 60 segundos para unirse</div>
@@ -204,6 +204,25 @@ export function MultiplayerLayer({ onExit }: { onExit: () => void }) {
       )}
 
       {m && m.phase === "done" && <FinalCard m={m} onExit={exit} />}
+
+      {rejected && !m && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onPointerDown={stop} onClick={stop}>
+          <div className={card}>
+            <div className="mb-2 text-center text-5xl">😿</div>
+            {rejected.declined.map((name) => (
+              <h2 key={name} className="text-center text-2xl font-black">{name} no es suitjus</h2>
+            ))}
+            {rejected.expired.length > 0 && (
+              <div className="mt-1 text-center text-sm font-bold text-white/70">
+                {rejected.expired.join(" y ")} no respondió a tiempo
+              </div>
+            )}
+            <button onClick={() => { dismissRejected(); onExit(); }} className={`${secondary} mt-5`}>
+              🏠 Volver al menú
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

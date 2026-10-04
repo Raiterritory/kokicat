@@ -11,7 +11,9 @@ import { pushActive, pushChallenge, savePushToken } from "./push";
 
 export type Who = { id: string; nickname: string };
 export type Invite = { room: string; mode: BoardMode; rounds: number; from: Who; others: Who[] };
-export type Reply = "pending" | "accepted" | "declined";
+export type Reply = "pending" | "accepted" | "declined" | "expired";
+/** Shown to the challenger when nobody joined: who declined and who did not answer in time. */
+export type Rejection = { declined: string[]; expired: string[] };
 export type Outgoing = { room: string; mode: BoardMode; rounds: number; to: Who[]; replies: Record<string, Reply> };
 export type Phase = "lobby" | "countdown" | "playing" | "roundEnd" | "done";
 export type Match = {
@@ -33,14 +35,17 @@ export type Match = {
 };
 export type Ghost = { nickname: string; y: number; rot: number; score: number; alive: boolean; dy: number | null };
 
-type State = { online: string[]; incoming: Invite | null; outgoing: Outgoing | null; match: Match | null; notice: string | null };
+type State = {
+  online: string[]; incoming: Invite | null; outgoing: Outgoing | null; match: Match | null; notice: string | null;
+  rejected: Rejection | null;
+};
 
 // 60 s: da tiempo a abrir la app desde la notificación aunque estuviera cerrada
 const INVITE_MS = 60000;
 const COUNTDOWN = 3;
 const NEXT_ROUND_MS = 4000;
 
-let state: State = { online: [], incoming: null, outgoing: null, match: null, notice: null };
+let state: State = { online: [], incoming: null, outgoing: null, match: null, notice: null, rejected: null };
 const subs = new Set<() => void>();
 function set(patch: Partial<State>) {
   state = { ...state, ...patch };
@@ -131,7 +136,7 @@ function onReply(p: { room: string; from: string; accept: boolean }) {
   const o = state.outgoing;
   if (!o || o.room !== p.room || o.replies[p.from] !== "pending") return;
   const who = o.to.find((t) => t.id === p.from);
-  if (!p.accept && who) notify(`${who.nickname} no aceptó el reto`);
+  if (!p.accept && who && o.to.length > 1) notify(`${who.nickname} no es suitjus`);
   set({ outgoing: { ...o, replies: { ...o.replies, [p.from]: p.accept ? "accepted" : "declined" } } });
   maybeStart();
 }
@@ -140,7 +145,7 @@ export function sendInvite(to: Who[], mode: BoardMode, rounds: number) {
   const me = self;
   if (!me || !to.length || state.match) return;
   const room = randomId();
-  set({ outgoing: { room, mode, rounds, to, replies: Object.fromEntries(to.map((t) => [t.id, "pending" as Reply])) } });
+  set({ rejected: null, outgoing: { room, mode, rounds, to, replies: Object.fromEntries(to.map((t) => [t.id, "pending" as Reply])) } });
   void lobbySend("invite", { room, mode, rounds, from: { id: me.id, nickname: me.nickname }, to });
   void pushChallenge(to.map((t) => t.id), room, mode, rounds);
   joinMatch(room, me.id, mode, rounds);
@@ -148,10 +153,15 @@ export function sendInvite(to: Who[], mode: BoardMode, rounds: number) {
     const o = state.outgoing;
     if (o?.room !== room) return;
     const replies = { ...o.replies };
-    for (const id in replies) if (replies[id] === "pending") replies[id] = "declined";
+    for (const id in replies) if (replies[id] === "pending") replies[id] = "expired";
     set({ outgoing: { ...o, replies } });
     maybeStart();
   }, INVITE_MS);
+}
+
+/** Closes the "nobody joined" screen. */
+export function dismissRejected() {
+  set({ rejected: null });
 }
 
 export function cancelInvite() {
@@ -247,7 +257,9 @@ function maybeStart() {
   const accepted = o.to.filter((t) => o.replies[t.id] === "accepted");
   if (pending.length) return;
   if (!accepted.length) {
-    set({ outgoing: null });
+    // nadie aceptó: pantalla con quién rechazó y quién no respondió
+    const names = (r: Reply) => o.to.filter((t) => o.replies[t.id] === r).map((t) => t.nickname);
+    set({ outgoing: null, rejected: { declined: names("declined"), expired: names("expired") } });
     leaveMatch();
     return;
   }
