@@ -19,8 +19,8 @@ import {
   type BossState,
 } from "@/lib/bossfight";
 import { drawRainbowCharacter, rainbowMaskStyle } from "@/lib/character-skins";
-import { syncScores } from "@/lib/leaderboard";
-import { LeaderboardModal, GameOverFriends, LiveRanking } from "@/lib/leaderboard-ui";
+import { syncScores, loadRivals, type BoardRow } from "@/lib/leaderboard";
+import { LeaderboardModal, GameOverFriends } from "@/lib/leaderboard-ui";
 import {
   playFlap, playMeow, playLogoSound,
   startMusic, setMusicVolume, setSfxVolume,
@@ -168,6 +168,7 @@ function Game() {
   selectedRef.current = selectedId;
   const modeRef = useRef(mode);
   modeRef.current = mode;
+  const rivalsRef = useRef<BoardRow[]>([]);
 
   const sizeRef = useRef({ w: 400, h: 600 });
   const [size, setSize] = useState({ w: 400, h: 600 });
@@ -289,6 +290,9 @@ function Game() {
     kickMusic();
     if (m) { setMode(m); modeRef.current = m; }
     reset();
+    rivalsRef.current = [];
+    const runMode = modeRef.current;
+    void loadRivals(runMode).then((r) => { if (modeRef.current === runMode) rivalsRef.current = r; });
     gameRef.current.speed = modeRef.current === "hard" ? HARD_START : PIPE_SPEED;
     setState("playing");
     gameRef.current.vy = JUMP;
@@ -540,6 +544,28 @@ function Game() {
       for (const p of g.pipes) {
         drawPipe(ctx, p.x, 0, PIPE_W, p.top, true);
         drawPipe(ctx, p.x, p.top + GAP, PIPE_W, HEIGHT - GROUND_H - (p.top + GAP), false);
+      }
+
+      // Live ranking: faint rival names in the gap of the pipe that beats them
+      if (stateRef.current === "playing" && rivalsRef.current.length) {
+        let ahead = 0;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        for (const p of g.pipes) {
+          if (p.passed) continue;
+          ahead++;
+          const beats = rivalsRef.current.filter((r) => r.score === g.score + ahead - 1);
+          if (!beats.length) continue;
+          const cx = p.x + PIPE_W / 2;
+          const cy = p.top + GAP / 2;
+          const names = beats.slice(0, 2).map((r) => r.nickname).join(", ") + (beats.length > 2 ? "…" : "");
+          ctx.font = "bold 15px system-ui, sans-serif";
+          ctx.fillText(names, cx, cy);
+          ctx.font = "bold 12px system-ui, sans-serif";
+          ctx.fillText(String(beats[0].score), cx, cy + 16);
+        }
+        ctx.restore();
       }
 
       // coins
@@ -1051,8 +1077,6 @@ function Game() {
             </div>
           </Overlay>
         )}
-
-        {state === "playing" && <LiveRanking mode={mode} score={score} />}
 
         {(state === "playing" || state === "ready") && !showSettings && (
           <button

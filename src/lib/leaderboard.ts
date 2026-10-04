@@ -57,6 +57,14 @@ export async function friendsBoard(mode: BoardMode): Promise<BoardRow[] | null> 
   return error ? null : (data as BoardRow[]);
 }
 
+/** Rivals to beat during a run: friends if you have any, otherwise global. Never includes you. */
+export async function loadRivals(mode: BoardMode): Promise<BoardRow[]> {
+  const p = getPlayer();
+  const fr = p ? await friendsBoard(mode) : null;
+  const rows = fr && fr.length > 1 ? fr : await globalBoard(mode);
+  return (rows ?? []).filter((r) => r.id !== p?.id && r.score > 0);
+}
+
 export async function searchPlayers(q: string): Promise<{ id: string; nickname: string }[]> {
   const p = getPlayer();
   if (!p) return [];

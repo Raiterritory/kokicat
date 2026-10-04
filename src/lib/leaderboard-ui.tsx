@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   type BoardMode, type BoardRow, type FriendRow, type Player,
   getPlayer, registerPlayer, syncScores, globalBoard, friendsBoard,
@@ -187,94 +187,6 @@ export function LeaderboardModal({ initialMode, onClose }: { initialMode: BoardM
           ← Volver
         </button>
       </div>
-    </div>
-  );
-}
-
-/**
- * Live ranking HUD shown while playing. Loads the board once per run
- * (friends if you have any, otherwise global) and slots your current
- * score into it in real time.
- */
-export function LiveRanking({ mode, score }: { mode: BoardMode; score: number }) {
-  const [board, setBoard] = useState<BoardRow[] | null>(null);
-  const [scope, setScope] = useState<"friends" | "global">("global");
-  const [passed, setPassed] = useState<string | null>(null);
-  const [meId, setMeId] = useState<string | undefined>();
-  const prevAbove = useRef<number | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const p = getPlayer();
-    setMeId(p?.id);
-    (async () => {
-      const fr = p ? await friendsBoard(mode) : null;
-      if (!alive) return;
-      if (fr && fr.length > 1) { setScope("friends"); setBoard(fr); return; }
-      const gl = await globalBoard(mode);
-      if (!alive) return;
-      setScope("global");
-      setBoard(gl);
-    })();
-    return () => { alive = false; };
-  }, [mode]);
-
-  const others = (board ?? []).filter((r) => r.id !== meId);
-  // Rivals are ranked by their best; you are ranked by your current run.
-  const rank = others.filter((r) => r.score >= score).length + 1;
-  const above = rank > 1 ? others[rank - 2] : null;
-  const below = others[rank - 1] ?? null;
-
-  useEffect(() => {
-    if (prevAbove.current !== null && rank < prevAbove.current) {
-      const beaten = others[rank - 1];
-      if (beaten) {
-        setPassed(beaten.nickname);
-        const t = setTimeout(() => setPassed(null), 1800);
-        prevAbove.current = rank;
-        return () => clearTimeout(t);
-      }
-    }
-    prevAbove.current = rank;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rank]);
-
-  useEffect(() => { prevAbove.current = null; }, [board]);
-
-  if (!board) return null;
-
-  const line = (pos: number, name: string, value: number, me = false) => (
-    <div
-      className={`flex items-center gap-1.5 rounded-lg px-2 py-0.5 ${me ? "bg-amber-400/90 text-slate-900" : "text-white"}`}
-    >
-      <span className="w-6 text-right font-black">#{pos}</span>
-      <span className="max-w-[72px] flex-1 truncate">{name}</span>
-      <span className="font-black">{value}</span>
-    </div>
-  );
-
-  return (
-    <div className="pointer-events-none absolute right-2 top-44 z-10 flex flex-col items-end gap-1">
-      <div className="w-40 rounded-xl bg-black/45 p-1.5 text-xs font-bold backdrop-blur">
-        <div className="mb-0.5 px-2 text-[10px] uppercase tracking-wider text-white/70">
-          {scope === "friends" ? "👥 Amigos" : "🌍 Global"} · en vivo
-        </div>
-        {above && line(rank - 1, above.nickname, above.score)}
-        {line(rank, "Tú", score, true)}
-        {below && line(rank + 1, below.nickname, below.score)}
-        {above ? (
-          <div className="px-2 pt-0.5 text-[10px] text-white/70">
-            {above.score - score + 1} para pasar a {above.nickname}
-          </div>
-        ) : others.length === 0 && (
-          <div className="px-2 pt-0.5 text-[10px] text-white/70">¡Sé el primero del ranking!</div>
-        )}
-      </div>
-      {passed && (
-        <div className="animate-bounce rounded-full bg-emerald-500 px-3 py-1 text-xs font-black text-white shadow-lg">
-          ¡Superaste a {passed}!
-        </div>
-      )}
     </div>
   );
 }
