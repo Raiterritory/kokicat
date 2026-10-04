@@ -11,12 +11,19 @@ const card = "w-full max-w-sm rounded-3xl border-2 border-white/10 bg-gradient-t
 const primary = "w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-6 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(127_29_29)] active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29)] disabled:opacity-50";
 const secondary = "w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_4px_0_rgba(0,0,0,0.3)] active:translate-y-0.5";
 
-/** Friends-tab section: pick 1-2 online friends, rounds, and send the challenge. */
+/**
+ * Friends-tab section: pick 1-2 friends, rounds, and send the challenge.
+ * Offline friends can be challenged too: they get a push notification and have 60 s to join.
+ */
 export function ChallengeFriends({ friends, mode, onSent }: { friends: FriendRow[]; mode: BoardMode; onSent: () => void }) {
   const { online } = useMp();
   const [picked, setPicked] = useState<string[]>([]);
   const [rounds, setRounds] = useState(3);
-  const onlineFriends = friends.filter((f) => f.status === "friend" && online.includes(f.id));
+  const isOn = (id: string) => online.includes(id);
+  // conectados primero, después el resto por nombre
+  const allFriends = friends
+    .filter((f) => f.status === "friend")
+    .sort((a, b) => Number(isOn(b.id)) - Number(isOn(a.id)) || a.nickname.localeCompare(b.nickname));
   const toggle = (id: string) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length >= 2 ? p : [...p, id]));
   const btn = (active: boolean) =>
@@ -25,19 +32,20 @@ export function ChallengeFriends({ friends, mode, onSent }: { friends: FriendRow
   return (
     <div className="mb-3 rounded-2xl bg-white/5 p-3" onPointerDown={stop} onClick={stop}>
       <div className="mb-2 text-xs font-bold uppercase text-white/60">⚔️ Jugar en vivo</div>
-      {onlineFriends.length === 0 ? (
-        <div className="text-xs text-white/60">Ningún amigo conectado. Tus amigos deben tener el juego abierto.</div>
+      {allFriends.length === 0 ? (
+        <div className="text-xs text-white/60">Aún no tienes amigos. Agrégalos con ➕ para retarlos.</div>
       ) : (
         <>
-          <div className="flex flex-col gap-1.5">
-            {onlineFriends.map((f) => (
+          <div className="flex max-h-48 flex-col gap-1.5 overflow-y-auto">
+            {allFriends.map((f) => (
               <button
                 key={f.id}
                 onClick={() => toggle(f.id)}
                 className={`flex items-center gap-2 rounded-xl px-3 py-2 text-left font-bold ${picked.includes(f.id) ? "bg-emerald-500 text-white" : "bg-white/10 text-white"}`}
               >
-                <span>{picked.includes(f.id) ? "✅" : "🟢"}</span>
+                <span>{picked.includes(f.id) ? "✅" : isOn(f.id) ? "🟢" : "⚪"}</span>
                 <span className="flex-1 truncate">{f.nickname}</span>
+                <span className="text-[10px] font-semibold opacity-70">{isOn(f.id) ? "conectado" : "le llegará un aviso"}</span>
               </button>
             ))}
           </div>
@@ -50,7 +58,7 @@ export function ChallengeFriends({ friends, mode, onSent }: { friends: FriendRow
           <button
             disabled={!picked.length}
             onClick={() => {
-              sendInvite(onlineFriends.filter((f) => picked.includes(f.id)).map(({ id, nickname }) => ({ id, nickname })), mode, rounds);
+              sendInvite(allFriends.filter((f) => picked.includes(f.id)).map(({ id, nickname }) => ({ id, nickname })), mode, rounds);
               onSent();
             }}
             className="mt-3 w-full rounded-full bg-gradient-to-b from-amber-300 to-orange-500 px-4 py-2 font-black text-white disabled:opacity-50"
@@ -96,7 +104,7 @@ function useGhostTick(active: boolean) {
 
 /** All multiplayer overlays: invitations, waiting room, countdown, round results, final results. */
 export function MultiplayerLayer({ onExit }: { onExit: () => void }) {
-  const { incoming, outgoing, match: m, notice } = useMp();
+  const { incoming, outgoing, match: m, notice, online } = useMp();
   const waitingOthers = !!m && m.phase === "playing" && m.scores[m.me.id] != null;
   useGhostTick(waitingOthers);
   const exit = () => { leaveMatch(); onExit(); };
@@ -133,10 +141,13 @@ export function MultiplayerLayer({ onExit }: { onExit: () => void }) {
                 {outgoing.to.map((t) => (
                   <div key={t.id} className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 font-bold">
                     <span className="flex-1 truncate">{t.nickname}</span>
+                    {outgoing.replies[t.id] === "pending" && !online.includes(t.id) && (
+                      <span className="text-[10px] font-semibold text-white/60">📲 avisado</span>
+                    )}
                     <span>{outgoing.replies[t.id] === "accepted" ? "✅" : outgoing.replies[t.id] === "declined" ? "❌" : "⏳"}</span>
                   </div>
                 ))}
-                <div className="mt-1 text-center text-xs text-white/60">Esperando respuestas…</div>
+                <div className="mt-1 text-center text-xs text-white/60">Esperando respuestas… tienen 60 segundos para unirse</div>
               </div>
             ) : (
               <div className="py-4 text-center text-sm text-white/70">Conectando con la sala…</div>
