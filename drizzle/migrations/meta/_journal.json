@@ -29,6 +29,27 @@
       "when": 1791145243670,
       "tag": "0003_push_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791159569340,
+      "tag": "0004_delete_player",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791159584506,
+      "tag": "0005_set_score",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791159602199,
+      "tag": "0006_push_tokens",
+      "breakpoints": true
     }
   ]
 }
