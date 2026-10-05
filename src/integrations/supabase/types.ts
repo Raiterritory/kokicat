@@ -80,12 +80,42 @@ export type Database = {
         }
         Relationships: []
       }
+      push_tokens: {
+        Row: {
+          player_id: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          player_id: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          player_id?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_tokens_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       _auth_player: {
+        Args: { p_id: string; p_secret: string }
+        Returns: undefined
+      }
+      delete_player: {
         Args: { p_id: string; p_secret: string }
         Returns: undefined
       }
@@ -134,6 +164,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      save_push_token: {
+        Args: { p_id: string; p_secret: string; p_token: string }
+        Returns: undefined
+      }
       search_players: {
         Args: { p_id: string; p_query: string; p_secret: string }
         Returns: {
@@ -143,6 +177,15 @@ export type Database = {
       }
       send_friend_request: {
         Args: { p_id: string; p_secret: string; p_to: string }
+        Returns: undefined
+      }
+      set_score: {
+        Args: {
+          p_hard: number
+          p_id: string
+          p_normal: number
+          p_secret: string
+        }
         Returns: undefined
       }
       submit_score: {
