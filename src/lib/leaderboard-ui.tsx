@@ -6,6 +6,7 @@ import {
 } from "./leaderboard";
 import { ChallengeFriends } from "./multiplayer-ui";
 import { SkinAvatar } from "./character-skins";
+import { RecoverProfileForm } from "./options-ui";
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -38,6 +39,9 @@ export function NicknameForm({ onDone }: { onDone: (p: Player) => void }) {
       >
         {busy ? "..." : "GUARDAR"}
       </button>
+      <div className="mt-2">
+        <RecoverProfileForm />
+      </div>
     </div>
   );
 }

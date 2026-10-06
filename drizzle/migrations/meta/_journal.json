@@ -43,6 +43,13 @@
       "when": 1791310198636,
       "tag": "0008_0007_player_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791320874257,
+      "tag": "0009_profile_recovery",
+      "breakpoints": true
     }
   ]
 }

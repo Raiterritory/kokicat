@@ -55,6 +55,81 @@ export async function deletePlayer(): Promise<{ ok: boolean; error?: string }> {
   return { ok: true };
 }
 
+// ---- Recuperar el perfil (migración 0009): código de recuperación + copia del guardado ----
+
+type Rpc = (fn: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+// Se llama como método (supabase.rpc(...)) para no perder el `this` del cliente,
+// y cualquier error inesperado vuelve como { error } en vez de dejar la pantalla esperando.
+const rpc: Rpc = async (fn, a) => {
+  try {
+    return await (supabase.rpc as unknown as Rpc)(fn, a);
+  } catch (e) {
+    return { data: null, error: { message: String(e) } };
+  }
+};
+const RECOVERY_KEY = "koki-recovery";
+const missingFn = (msg: string) => /function|schema cache/i.test(msg);
+
+/** "7F3A9C21B04ED85C" -> "7F3A-9C21-B04E-D85C" */
+export const formatRecoveryCode = (code: string) => code.replace(/(.{4})(?=.)/g, "$1-");
+
+/** The code that, together with the nickname, recovers this profile after reinstalling the app. */
+export async function getRecoveryCode(): Promise<{ code?: string; error?: string }> {
+  const p = getPlayer();
+  if (!p) return { error: "Primero crea tu usuario online" };
+  const cached = localStorage.getItem(RECOVERY_KEY);
+  const { data, error } = await rpc("get_recovery_code", { p_id: p.id, p_secret: p.secret });
+  if (error || typeof data !== "string") {
+    if (cached) return { code: cached };
+    return { error: error && missingFn(error.message) ? "El servidor aún no tiene esta opción activada" : "Sin conexión, intenta de nuevo" };
+  }
+  localStorage.setItem(RECOVERY_KEY, data);
+  void backupProfile();
+  return { code: data };
+}
+
+/** Keeps a copy of the save (pastelitos, characters, records, skin) online, without the account key. */
+export async function backupProfile() {
+  const p = getPlayer();
+  if (!p) return;
+  const { currentData } = await import("./save-data");
+  const data = currentData();
+  delete data["koki-player"];
+  await rpc("save_profile", { p_id: p.id, p_secret: p.secret, p_data: data });
+}
+
+/** Signs this phone into an existing profile with nickname + recovery code, and restores its save. */
+export async function recoverPlayer(nick: string, code: string): Promise<{ player?: Player; restored?: boolean; error?: string }> {
+  const { data, error } = await rpc("recover_player", { p_nick: nick, p_code: code });
+  if (error) {
+    if (error.message.includes("invalid_code")) return { error: "El apodo o el código no coinciden" };
+    if (missingFn(error.message)) return { error: "El servidor aún no tiene esta opción activada" };
+    return { error: "Sin conexión, intenta de nuevo" };
+  }
+  const row = (data as { id: string; secret: string; nickname: string; save_data: Record<string, unknown> | null }[])[0];
+  if (!row) return { error: "El apodo o el código no coinciden" };
+  const player = { id: row.id, secret: row.secret, nickname: row.nickname };
+  localStorage.setItem(KEY, JSON.stringify(player));
+  localStorage.setItem(RECOVERY_KEY, code.replace(/[^0-9a-f]/gi, "").toUpperCase());
+
+  let restored = false;
+  if (row.save_data && typeof row.save_data === "object") {
+    const { applySave } = await import("./save-data");
+    const strings: Record<string, string> = {};
+    for (const [k, v] of Object.entries(row.save_data)) if (typeof v === "string" && k !== "koki-player") strings[k] = v;
+    applySave({ app: "kokicat", version: 1, exportedAt: "", data: strings });
+    restored = true;
+  }
+  // Los récords del ranking nunca bajan al recuperar: se toma el mayor entre el servidor y este teléfono
+  for (const [mode, key] of [["normal", "koki-best"], ["hard", "koki-best-hard"]] as const) {
+    const rows = await friendsBoard(mode);
+    const mine = rows?.find((r) => r.id === player.id)?.score ?? 0;
+    if (mine > Number(localStorage.getItem(key) || 0)) localStorage.setItem(key, String(mine));
+  }
+  window.dispatchEvent(new Event("koki-player"));
+  return { player, restored };
+}
+
 /** Tells the server which skin this player uses, so it shows next to their name in the ranking. */
 export async function syncSkin() {
   const p = getPlayer();
@@ -88,6 +163,7 @@ export async function syncScoresExact(): Promise<"exact" | "maxOnly" | "error" |
     fn: string, a: Record<string, unknown>,
   ) => Promise<{ error: { message: string } | null }>)("set_score", args);
   void syncSkin();
+  void backupProfile();
   if (!error) return "exact";
   if (!/set_score|function|schema cache/i.test(error.message)) return "error";
   const fallback = await supabase.rpc("submit_score", args);

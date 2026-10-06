@@ -24,7 +24,7 @@ import {
 } from "@/lib/bossfight";
 import { drawSkinCharacter, SkinPreview } from "@/lib/character-skins";
 import { CHARACTERS, CHAR_BY_ID } from "@/lib/characters";
-import { syncScores, syncScoresExact, syncSkin, loadRivals, type BoardRow } from "@/lib/leaderboard";
+import { syncScores, syncScoresExact, syncSkin, backupProfile, loadRivals, type BoardRow } from "@/lib/leaderboard";
 import { LeaderboardModal, GameOverFriends, type Tab as BoardTab } from "@/lib/leaderboard-ui";
 import {
   useMp, getMp, ghosts, initLobby, setRoundStarter, reportPos, reportDead, seededRandom, inviteFromPush,
@@ -969,6 +969,9 @@ function Game() {
     localStorage.setItem("koki-unlocked", JSON.stringify(newUnlocked));
     setSelectedId(id);
     localStorage.setItem("koki-selected", id);
+    // compra nueva: skin y copia del perfil al servidor
+    void syncSkin();
+    void backupProfile();
   };
 
   const tryDebug = () => {
