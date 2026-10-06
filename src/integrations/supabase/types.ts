@@ -58,6 +58,7 @@ export type Database = {
           id: string
           nickname: string
           secret: string
+          skin: string
           updated_at: string
         }
         Insert: {
@@ -67,6 +68,7 @@ export type Database = {
           id?: string
           nickname: string
           secret?: string
+          skin?: string
           updated_at?: string
         }
         Update: {
@@ -76,6 +78,7 @@ export type Database = {
           id?: string
           nickname?: string
           secret?: string
+          skin?: string
           updated_at?: string
         }
         Relationships: []
@@ -125,6 +128,7 @@ export type Database = {
           id: string
           nickname: string
           score: number
+          skin: string
         }[]
       }
       global_leaderboard: {
@@ -133,6 +137,7 @@ export type Database = {
           id: string
           nickname: string
           score: number
+          skin: string
         }[]
       }
       my_friends: {
@@ -186,6 +191,10 @@ export type Database = {
           p_normal: number
           p_secret: string
         }
+        Returns: undefined
+      }
+      set_skin: {
+        Args: { p_id: string; p_secret: string; p_skin: string }
         Returns: undefined
       }
       submit_score: {
