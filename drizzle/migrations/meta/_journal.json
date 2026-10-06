@@ -36,6 +36,13 @@
       "when": 1791309296135,
       "tag": "0007_player_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791310198636,
+      "tag": "0008_0007_player_skin",
+      "breakpoints": true
     }
   ]
 }
