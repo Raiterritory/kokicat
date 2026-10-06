@@ -54,6 +54,7 @@ export type Database = {
         Row: {
           best_hard: number
           best_normal: number
+          best_taz: number
           created_at: string
           id: string
           is_admin: boolean
@@ -70,6 +71,7 @@ export type Database = {
         Insert: {
           best_hard?: number
           best_normal?: number
+          best_taz?: number
           created_at?: string
           id?: string
           is_admin?: boolean
@@ -86,6 +88,7 @@ export type Database = {
         Update: {
           best_hard?: number
           best_normal?: number
+          best_taz?: number
           created_at?: string
           id?: string
           is_admin?: boolean
@@ -285,6 +288,10 @@ export type Database = {
       }
       set_skin: {
         Args: { p_id: string; p_secret: string; p_skin: string }
+        Returns: undefined
+      }
+      set_taz_score: {
+        Args: { p_id: string; p_score: number; p_secret: string }
         Returns: undefined
       }
       submit_score: {
