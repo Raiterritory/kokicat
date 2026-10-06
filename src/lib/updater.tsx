@@ -1,14 +1,50 @@
 // Auto-update for the Android app: on start, compares the installed version with the
 // latest GitHub release. If there is a newer one, it offers to download the APK inside
 // the app and opens Android's installer (Android always asks for that last "Install" tap).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
+import { ensureNotifyPermission } from "./notify";
 
 const REPO = "Raiterritory/kokicat";
 const LATER_KEY = "koki-update-later";
 const LATER_MS = 12 * 60 * 60 * 1000;
 
 export type UpdateInfo = { version: string; notes: string[]; apkUrl: string; size: number };
+
+// ---- Aviso en la barra de notificaciones ----
+const BAR_ID = 90010;
+const BAR_KIND = "kokicat-update";
+let channelsReady = false;
+
+async function bar(title: string, body: string, opts: { progress?: boolean } = {}) {
+  if (!Capacitor.isNativePlatform() || !(await ensureNotifyPermission())) return;
+  try {
+    const { LocalNotifications } = await import("@capacitor/local-notifications");
+    if (!channelsReady) {
+      channelsReady = true;
+      await LocalNotifications.createChannel({ id: "actualizaciones", name: "Actualizaciones", description: "Versiones nuevas de KokiCat", importance: 4, visibility: 1 }).catch(() => {});
+      await LocalNotifications.createChannel({ id: "descargas", name: "Descarga de actualizaciones", description: "Progreso de la descarga", importance: 2, visibility: 1, vibration: false }).catch(() => {});
+    }
+    await LocalNotifications.schedule({
+      notifications: [{
+        id: BAR_ID, title, body,
+        channelId: opts.progress ? "descargas" : "actualizaciones",
+        ongoing: !!opts.progress, autoCancel: !opts.progress,
+        extra: { kind: BAR_KIND },
+      }],
+    });
+  } catch { /* sin notificación: queda la ventana dentro del juego */ }
+}
+
+async function clearBar() {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    const { LocalNotifications } = await import("@capacitor/local-notifications");
+    await LocalNotifications.cancel({ notifications: [{ id: BAR_ID }] });
+  } catch { /* nada que borrar */ }
+}
+
+const mbOf = (bytes: number) => (bytes / 1024 / 1024).toFixed(1);
 
 /** Compares "1.10" with "1.9" number by number. >0 when a is newer. */
 export function compareVersions(a: string, b: string) {
@@ -30,7 +66,7 @@ function notesFrom(body: string) {
     .slice(0, 12);
 }
 
-export async function checkForUpdate(): Promise<UpdateInfo | null> {
+export async function checkForUpdate(ignoreLater = false): Promise<UpdateInfo | null> {
   if (!Capacitor.isNativePlatform()) return null;
   try {
     const { App } = await import("@capacitor/app");
@@ -41,13 +77,16 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
     if (!res.ok) return null;
     const rel = (await res.json()) as { tag_name?: string; body?: string; assets?: { name: string; browser_download_url: string; size: number }[] };
     const latest = String(rel.tag_name ?? "").replace(/^v/i, "");
-    if (!latest || compareVersions(latest, installed) <= 0) return null;
+    if (!latest || compareVersions(latest, installed) <= 0) {
+      void clearBar(); // ya está al día: se quita un aviso viejo de la barra
+      return null;
+    }
     const apk = (rel.assets ?? []).find((a) => a.name.toLowerCase().endsWith(".apk"));
     if (!apk) return null;
     // "Más tarde": no volver a preguntar por esta misma versión durante unas horas
     try {
       const later = JSON.parse(localStorage.getItem(LATER_KEY) || "null") as { v: string; t: number } | null;
-      if (later && later.v === latest && Date.now() - later.t < LATER_MS) return null;
+      if (!ignoreLater && later && later.v === latest && Date.now() - later.t < LATER_MS) return null;
     } catch { /* sin dato */ }
     return { version: latest, notes: notesFrom(rel.body ?? ""), apkUrl: apk.browser_download_url, size: apk.size };
   } catch {
@@ -60,15 +99,29 @@ async function downloadApk(u: UpdateInfo, onProgress: (p: number) => void) {
   const { Filesystem, Directory } = await import("@capacitor/filesystem");
   const { FileTransfer } = await import("@capacitor/file-transfer");
   const { uri } = await Filesystem.getUri({ directory: Directory.Cache, path: `KokiCat-${u.version}.apk` });
+  let lastPct = -1;
+  void bar(`Descargando KokiCat ${u.version}`, `0% · 0 de ${mbOf(u.size)} MB`, { progress: true });
   const listener = await FileTransfer.addListener("progress", (p) => {
     const total = p.lengthComputable && p.contentLength > 0 ? p.contentLength : u.size;
-    if (total > 0) onProgress(Math.min(1, p.bytes / total));
+    if (total <= 0) return;
+    const frac = Math.min(1, p.bytes / total);
+    onProgress(frac);
+    // la barra del teléfono se actualiza cada 5%
+    const pct = Math.floor(frac * 20) * 5;
+    if (pct !== lastPct) {
+      lastPct = pct;
+      void bar(`Descargando KokiCat ${u.version}`, `${pct}% · ${mbOf(p.bytes)} de ${mbOf(total)} MB`, { progress: true });
+    }
   });
   try {
     await FileTransfer.downloadFile({ url: u.apkUrl, path: uri, progress: true });
+  } catch (e) {
+    void bar(`No se pudo descargar KokiCat ${u.version}`, "Toca para intentarlo de nuevo");
+    throw e;
   } finally {
     await listener.remove();
   }
+  void bar(`KokiCat ${u.version} lista para instalar`, "Toca para instalar la actualización 📲");
   return uri;
 }
 
@@ -86,10 +139,29 @@ export function UpdatePrompt() {
   const [progress, setProgress] = useState(0);
   const [file, setFile] = useState<string | null>(null);
 
+  const fileRef = useRef<string | null>(null);
+  fileRef.current = file;
+
   useEffect(() => {
     let alive = true;
-    void checkForUpdate().then((u) => { if (alive) setInfo(u); });
-    return () => { alive = false; };
+    void checkForUpdate().then((u) => {
+      if (!alive || !u) return;
+      setInfo(u);
+      void bar(`¡Nueva versión ${u.version} de KokiCat!`, "Toca para descargarla y actualizar 🎉");
+    });
+    // tocar el aviso de la barra: abre el instalador si ya se descargó, o vuelve a mostrar la ventana
+    let remove: (() => void) | null = null;
+    if (Capacitor.isNativePlatform()) {
+      void import("@capacitor/local-notifications").then(async ({ LocalNotifications }) => {
+        const h = await LocalNotifications.addListener("localNotificationActionPerformed", (a) => {
+          if (a.notification.extra?.kind !== BAR_KIND) return;
+          if (fileRef.current) { void openInstaller(fileRef.current); return; }
+          void checkForUpdate(true).then((u) => { if (u) { setInfo(u); setStep("ask"); } });
+        });
+        if (alive) remove = () => void h.remove(); else void h.remove();
+      });
+    }
+    return () => { alive = false; remove?.(); };
   }, []);
 
   if (!info) return null;

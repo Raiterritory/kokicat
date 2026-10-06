@@ -1,6 +1,7 @@
 // Todos los personajes y sus variantes (skins). Lo usan el juego, el menú de personajes y el ranking.
 import kokiAsset from "@/assets/koki-real.png.asset.json";
 import gatoNegroPng from "@/assets/gato-negro.png";
+import bolaNievePng from "@/assets/bola-nieve.png";
 import gufiAsset from "@/assets/gufi.png.asset.json";
 import ratonAsset from "@/assets/raton.png.asset.json";
 import type { SkinFx } from "./character-skins";
@@ -32,6 +33,7 @@ export const CHARACTERS: Character[] = [
   { id: "taz-violeta", name: "Taz Violeta", url: gatoNegroPng, price: 250, base: "taz", fx: "violeta" },
   { id: "taz-fuego", name: "Taz Fuego", url: gatoNegroPng, price: 450, base: "taz", fx: "fuego" },
   { id: "taz-hielo", name: "Taz Hielo", url: gatoNegroPng, price: 600, base: "taz", fx: "hielo" },
+  { id: "taz-bola-nieve", name: "Bola de Nieve", url: bolaNievePng, price: 50, base: "bola-nieve" },
 
   // variantes de Gufi
   { id: "gufi-crema", name: "Gufi Crema", url: gufiAsset.url, price: 250, base: "gufi", filter: "saturate(0.5) brightness(1.35)" },
