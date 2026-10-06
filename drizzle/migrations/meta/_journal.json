@@ -71,6 +71,13 @@
       "when": 1791322162638,
       "tag": "0012_admin_panel",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791322374162,
+      "tag": "0013_player_password",
+      "breakpoints": true
     }
   ]
 }

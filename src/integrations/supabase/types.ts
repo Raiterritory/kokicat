@@ -56,7 +56,11 @@ export type Database = {
           best_normal: number
           created_at: string
           id: string
+          is_admin: boolean
+          login_fails: number
+          login_locked_until: string | null
           nickname: string
+          password_hash: string | null
           recovery_code: string | null
           save_data: Json | null
           secret: string
@@ -68,7 +72,11 @@ export type Database = {
           best_normal?: number
           created_at?: string
           id?: string
+          is_admin?: boolean
+          login_fails?: number
+          login_locked_until?: string | null
           nickname: string
+          password_hash?: string | null
           recovery_code?: string | null
           save_data?: Json | null
           secret?: string
@@ -80,7 +88,11 @@ export type Database = {
           best_normal?: number
           created_at?: string
           id?: string
+          is_admin?: boolean
+          login_fails?: number
+          login_locked_until?: string | null
           nickname?: string
+          password_hash?: string | null
           recovery_code?: string | null
           save_data?: Json | null
           secret?: string
@@ -120,8 +132,46 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _auth_admin: {
+        Args: { p_id: string; p_secret: string }
+        Returns: undefined
+      }
       _auth_player: {
         Args: { p_id: string; p_secret: string }
+        Returns: undefined
+      }
+      admin_check: {
+        Args: { p_id: string; p_secret: string }
+        Returns: boolean
+      }
+      admin_delete_player: {
+        Args: { p_id: string; p_secret: string; p_target: string }
+        Returns: undefined
+      }
+      admin_find_players: {
+        Args: { p_id: string; p_query: string; p_secret: string }
+        Returns: {
+          best_hard: number
+          best_normal: number
+          created_at: string
+          has_code: boolean
+          has_password: boolean
+          id: string
+          is_admin: boolean
+          nickname: string
+        }[]
+      }
+      admin_recovery_code: {
+        Args: { p_id: string; p_secret: string; p_target: string }
+        Returns: string
+      }
+      admin_set_password: {
+        Args: {
+          p_id: string
+          p_password: string
+          p_secret: string
+          p_target: string
+        }
         Returns: undefined
       }
       delete_player: {
@@ -148,6 +198,19 @@ export type Database = {
           nickname: string
           score: number
           skin: string
+        }[]
+      }
+      has_password: {
+        Args: { p_id: string; p_secret: string }
+        Returns: boolean
+      }
+      login_player: {
+        Args: { p_nick: string; p_password: string }
+        Returns: {
+          id: string
+          nickname: string
+          save_data: Json
+          secret: string
         }[]
       }
       my_friends: {
@@ -205,6 +268,10 @@ export type Database = {
       }
       send_friend_request: {
         Args: { p_id: string; p_secret: string; p_to: string }
+        Returns: undefined
+      }
+      set_password: {
+        Args: { p_id: string; p_password: string; p_secret: string }
         Returns: undefined
       }
       set_score: {
