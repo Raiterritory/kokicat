@@ -18,7 +18,7 @@ export async function handleChallenge(request: Request, headers: Record<string, 
     || !b.room || !/^[a-z0-9]{4,16}$/.test(b.room)) {
     return reply(400, { error: "bad_request" });
   }
-  const mode = b.mode === "hard" ? "hard" : "normal";
+  const mode = b.mode === "hard" ? "hard" : b.mode === "taz" ? "taz" : "normal";
   const rounds = b.rounds === 2 ? 2 : 3;
 
   const sa = readServiceAccount();
@@ -46,7 +46,7 @@ export async function handleChallenge(request: Request, headers: Record<string, 
   const players = to.length + 1;
   const { sent, dead } = await sendPush(sa, tokens, {
     title: `${me.nickname} quiere jugar contigo`,
-    body: `${mode === "hard" ? "🔥 Difícil" : "Normal"} · ${rounds} rondas · ${players} jugadores · Toca para aceptar ⚔️`,
+    body: `${mode === "hard" ? "🔥 Difícil" : mode === "taz" ? "🐈‍⬛ Atrapa al Taz" : "Normal"} · ${rounds} rondas · ${players} jugadores · Toca para aceptar ⚔️`,
     tag: `reto-${b.room}`,
     data: {
       type: "challenge",

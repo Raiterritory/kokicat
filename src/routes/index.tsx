@@ -24,7 +24,7 @@ import {
 } from "@/lib/bossfight";
 import { drawSkinCharacter, SkinPreview } from "@/lib/character-skins";
 import { CHARACTERS, CHAR_BY_ID } from "@/lib/characters";
-import { syncScores, syncScoresExact, syncSkin, backupProfile, loadRivals, type BoardRow } from "@/lib/leaderboard";
+import { syncScores, syncScoresExact, syncSkin, backupProfile, loadRivals, type BoardRow, type BoardMode } from "@/lib/leaderboard";
 import { LeaderboardModal, GameOverFriends, type Tab as BoardTab } from "@/lib/leaderboard-ui";
 import {
   useMp, getMp, ghosts, initLobby, setRoundStarter, reportPos, reportDead, seededRandom, inviteFromPush,
@@ -34,6 +34,10 @@ import { initPush } from "@/lib/push";
 import { SaveDataSection, OnlineAccountSection, PasswordPrompt } from "@/lib/options-ui";
 import { UpdatePrompt, InstalledVersion, CheckUpdateButton } from "@/lib/updater";
 import { AdminPanel } from "@/lib/admin";
+import {
+  AchievementToast, AchievementsModal, onFlappyGameEnd, onBossBeaten, onGoldenCaught, onTazGameEnd, onCharacters,
+} from "@/lib/achievements";
+import { TazModeScreen, TazGame } from "@/lib/taz-game";
 import {
   playFlap, playMeow, playLogoSound, playBossStart,
   startMusic, setMusicVolume, setSfxVolume,
@@ -147,6 +151,14 @@ function Game() {
   const [showBoard, setShowBoard] = useState(false);
   const [pickMode, setPickMode] = useState(false);
   const [boardTab, setBoardTab] = useState<BoardTab>("global");
+  // ranking abierto desde Atrapa al Taz (solo ese modo)
+  const [boardMode, setBoardMode] = useState<BoardMode | null>(null);
+  // modo Atrapa al Taz: su pantalla, y la ronda online en curso
+  const [tazScreen, setTazScreen] = useState(false);
+  const [tazMatch, setTazMatch] = useState<{ seed: number; round: number } | null>(null);
+  const [showAchievements, setShowAchievements] = useState(false);
+  const logoSwipe = useRef<number | null>(null);
+  const tazReport = useRef(0);
   useEffect(() => {
     void syncScores();
     const onOnline = () => void syncScores();
@@ -220,6 +232,7 @@ function Game() {
     setBestHard(Number(localStorage.getItem("koki-best-hard") || 0));
     setCoins(Number(localStorage.getItem("koki-coins") || 0));
     setUnlocked(loadUnlocked());
+    onCharacters(loadUnlocked().length, CHARACTERS.length);
     setSelectedId(localStorage.getItem("koki-selected") || "koki");
     setMusicVol(getMusicVolume());
     setSfxVol(getSfxVolume());
@@ -365,6 +378,8 @@ function Game() {
       setShowBoard(false);
       setPickMode(false);
       setShowSettings(false);
+      // partida online de Atrapa al Taz: cada ronda es más difícil que la anterior
+      if (m === "taz") { setTazMatch({ seed, round: (getMp().match?.round ?? 1) - 1 }); return; }
       startGame(m, seed);
     });
     return () => {
@@ -531,6 +546,7 @@ function Game() {
           if (dx * dx + dy * dy < (r + GOLDEN_SIZE / 2) * (r + GOLDEN_SIZE / 2)) {
             gd.taken = true;
             g.magnet = MAGNET_FRAMES;
+            onGoldenCaught();
             spawnStars(gd.x, gd.y);
             spawnStars(gd.x, gd.y);
             playMeow();
@@ -584,6 +600,7 @@ function Game() {
           if (bossStatus.finished) {
             g.boss = null;
             g.score += 5;
+            onBossBeaten();
             g.runCoins += 10;
             setScore(g.score);
             spawnStars(kx, ky); spawnStars(kx, ky);
@@ -600,27 +617,71 @@ function Game() {
       g.trail.forEach((t) => (t.x -= g.speed));
       g.trail.push({ x: kokiX, y: g.y });
       g.trail = g.trail.filter((t) => t.x > -30);
-      if (g.trail.length > 2) {
-        const bands = ["#ff2d2d", "#ff9a2d", "#ffe62d", "#3ddc4a", "#2d9bff", "#a44bff"];
+      if (g.trail.length > 3) {
+        // Cinta arcoíris suave: curvas en vez de zigzag, se afina y se desvanece hacia la cola,
+        // con un brillo detrás y destellos. Un solo trazo por color (liviano para el teléfono).
+        const bands = ["#ff3b3b", "#ff9a2d", "#ffe62d", "#3ddc4a", "#2d9bff", "#a44bff"];
         const bandH = 6;
         const total = bands.length * bandH;
-        ctx.save();
-        ctx.lineCap = "butt";
-        ctx.lineJoin = "round";
-        ctx.lineWidth = bandH;
-        bands.forEach((color, bi) => {
-          const off = -total / 2 + bandH / 2 + bi * bandH;
-          ctx.strokeStyle = color;
+        const pts = g.trail;
+        const n = pts.length;
+        // suavizado: promedio de vecinos para quitar los saltos del aleteo
+        const sm = pts.map((p, i) => ({
+          x: p.x,
+          y: (pts[Math.max(0, i - 2)].y + pts[Math.max(0, i - 1)].y + p.y + pts[Math.min(n - 1, i + 1)].y) / 4,
+        }));
+        const tailX = sm[0].x, headX = sm[n - 1].x;
+        // ancho relativo: fino en la cola, completo junto a Koki
+        const widthAt = (i: number) => 0.3 + 0.7 * (i / (n - 1));
+        const smoothPath = (offset: number) => {
           ctx.beginPath();
-          g.trail.forEach((t, i) => {
-            const step = Math.round((t.x + g.scroll) / 14) % 2;
-            const wob = step === 0 ? -3 : 3;
-            const y = t.y + off + wob;
-            if (i === 0) ctx.moveTo(t.x, y);
-            else ctx.lineTo(t.x, y);
-          });
+          ctx.moveTo(sm[0].x, sm[0].y + offset * widthAt(0));
+          for (let i = 1; i < n - 1; i++) {
+            const mx = (sm[i].x + sm[i + 1].x) / 2;
+            const my = (sm[i].y * widthAt(i) + sm[i + 1].y * widthAt(i + 1)) / (widthAt(i) + widthAt(i + 1));
+            const mo = offset * (widthAt(i) + widthAt(i + 1)) / 2;
+            ctx.quadraticCurveTo(sm[i].x, sm[i].y + offset * widthAt(i), mx, my + mo);
+          }
+          ctx.lineTo(sm[n - 1].x, sm[n - 1].y + offset);
+        };
+        const fade = (color: string, maxAlpha: number) => {
+          const gr = ctx.createLinearGradient(tailX, 0, headX, 0);
+          gr.addColorStop(0, `${color}00`);
+          gr.addColorStop(0.35, `${color}${Math.round(maxAlpha * 0.55 * 255).toString(16).padStart(2, "0")}`);
+          gr.addColorStop(1, `${color}${Math.round(maxAlpha * 255).toString(16).padStart(2, "0")}`);
+          return gr;
+        };
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        // brillo suave detrás de la cinta
+        ctx.lineWidth = total + 10;
+        ctx.strokeStyle = fade("#ffffff", 0.22);
+        smoothPath(0);
+        ctx.stroke();
+        // las seis franjas
+        ctx.lineWidth = bandH + 0.8;
+        bands.forEach((color, bi) => {
+          ctx.strokeStyle = fade(color, 0.95);
+          smoothPath(-total / 2 + bandH / 2 + bi * bandH);
           ctx.stroke();
         });
+        // destellos que titilan a lo largo de la cinta
+        for (let k = 0; k < 6; k++) {
+          const i = Math.floor(((g.frame * 0.7 + k * 37) % (n - 2))) + 1;
+          const t = i / (n - 1);
+          const tw = 0.5 + 0.5 * Math.sin(g.frame * 0.3 + k * 1.7);
+          const s = (2 + 3 * tw) * (0.5 + 0.5 * t);
+          const x = sm[i].x, y = sm[i].y + Math.sin(k * 2.3 + g.frame * 0.05) * total * 0.45 * widthAt(i);
+          ctx.globalAlpha = t * (0.4 + 0.6 * tw);
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.moveTo(x, y - s * 2); ctx.lineTo(x + s * 0.5, y - s * 0.5); ctx.lineTo(x + s * 2, y);
+          ctx.lineTo(x + s * 0.5, y + s * 0.5); ctx.lineTo(x, y + s * 2); ctx.lineTo(x - s * 0.5, y + s * 0.5);
+          ctx.lineTo(x - s * 2, y); ctx.lineTo(x - s * 0.5, y - s * 0.5);
+          ctx.closePath();
+          ctx.fill();
+        }
         ctx.restore();
       }
 
@@ -940,6 +1001,7 @@ function Game() {
       setCoins(totalCoins);
       void syncScores();
       reportDead(g.score);
+      onFlappyGameEnd(modeRef.current, g.score, g.runCoins);
       setState("over");
     };
 
@@ -974,6 +1036,7 @@ function Game() {
     // compra nueva: skin y copia del perfil al servidor
     void syncSkin();
     void backupProfile();
+    onCharacters(newUnlocked.length, CHARACTERS.length);
   };
 
   const tryDebug = () => {
@@ -993,7 +1056,7 @@ function Game() {
   };
 
   const wipeData = () => {
-    ["koki-coins", "koki-unlocked", "koki-selected", "koki-best", "koki-best-hard"].forEach((k) =>
+    ["koki-coins", "koki-unlocked", "koki-selected", "koki-best", "koki-best-hard", "koki-best-taz", "koki-achievements", "koki-stats"].forEach((k) =>
       localStorage.removeItem(k),
     );
     setCoins(0); setUnlocked(["koki"]); setSelectedId("koki");
@@ -1026,15 +1089,23 @@ function Game() {
           className="block h-full w-full touch-none select-none"
         />
 
-        {state === "menu" && (
+        {state === "menu" && !tazScreen && (
           <Overlay>
             <div className="flex w-full max-w-sm flex-col items-center gap-4 px-6 text-center short:max-w-3xl short:flex-row short:gap-8">
               <div className="flex w-full flex-col items-center gap-4 short:w-1/2">
+              {/* modo sorpresa: deslizar el logo hacia la derecha abre "Atrapa al Taz" (sin pista); tocarlo, su sonido */}
               <img
                 src={menuLogo.url}
                 alt="Estamos aqui con Koki"
+                draggable={false}
+                onPointerDown={(e) => { logoSwipe.current = e.clientX; }}
+                onPointerUp={(e) => {
+                  const start = logoSwipe.current;
+                  logoSwipe.current = null;
+                  if (start != null && e.clientX - start > 60) { e.stopPropagation(); setTazScreen(true); }
+                }}
                 onClick={(e) => { e.stopPropagation(); playLogoSound(); }}
-                className="w-full max-w-[300px] short:max-w-[260px] cursor-pointer select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform active:scale-95"
+                className="w-full max-w-[300px] short:max-w-[260px] cursor-pointer touch-pan-y select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform active:scale-95"
                 style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }}
               />
               <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5 text-white font-bold text-sm backdrop-blur">
@@ -1060,6 +1131,12 @@ function Game() {
                 className="w-full rounded-full bg-gradient-to-b from-amber-300 to-amber-500 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(146_64_14),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(146_64_14)]"
               >
                 🏆 RANKING
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowAchievements(true); }}
+                className="w-full rounded-full bg-gradient-to-b from-fuchsia-400 to-purple-600 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(88_28_135),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(88_28_135)]"
+              >
+                🏅 LOGROS
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); kickMusic(); setShowSettings(true); }}
@@ -1246,7 +1323,11 @@ function Game() {
         )}
 
         {showBoard && (
-          <LeaderboardModal initialMode={mode} initialTab={boardTab} onClose={() => { setShowBoard(false); setBoardTab("global"); }} />
+          <LeaderboardModal
+            initialMode={boardMode ?? mode}
+            initialTab={boardTab}
+            onClose={() => { setShowBoard(false); setBoardTab("global"); setBoardMode(null); }}
+          />
         )}
 
         <MultiplayerLayer onExit={goToMenu} />
@@ -1256,6 +1337,37 @@ function Game() {
 
         {/* Usuarios online sin contraseña: se les pide crearla */}
         <PasswordPrompt />
+
+        {/* Modo Atrapa al Taz (pantalla propia) y su ronda online en curso */}
+        {tazScreen && !tazMatch && (
+          <TazModeScreen
+            onBack={() => setTazScreen(false)}
+            onRanking={() => { setBoardMode("taz"); setBoardTab("global"); setShowBoard(true); }}
+            onMultiplayer={() => { setBoardMode("taz"); setBoardTab("friends"); setShowBoard(true); }}
+          />
+        )}
+        {tazMatch && (
+          <TazGame
+            seed={tazMatch.seed}
+            round={tazMatch.round}
+            onScore={(s) => {
+              // el puntaje en vivo se comparte con los rivales unas 3 veces por segundo
+              const t = performance.now();
+              if (t - tazReport.current > 300) { tazReport.current = t; reportPos(0, 0, s); }
+            }}
+            onEnd={(score, hits) => {
+              reportDead(score);
+              onTazGameEnd(score, hits);
+              const prev = Number(localStorage.getItem("koki-best-taz") || 0);
+              if (score > prev) { localStorage.setItem("koki-best-taz", String(score)); void syncScores(); }
+              setTazMatch(null);
+              setTazScreen(true);
+            }}
+          />
+        )}
+
+        {showAchievements && <AchievementsModal onClose={() => setShowAchievements(false)} />}
+        <AchievementToast />
 
         {showSettings && (
           <Overlay>

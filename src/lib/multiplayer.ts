@@ -5,7 +5,7 @@
 import { useSyncExternalStore } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { getPlayer, type BoardMode } from "./leaderboard";
+import { getPlayer, modeLabel, type BoardMode } from "./leaderboard";
 import { ensureNotifyPermission, notifyChallenge } from "./notify";
 import { pushActive, pushChallenge, savePushToken } from "./push";
 
@@ -129,7 +129,7 @@ function onInvite(p: { room: string; mode: BoardMode; rounds: number; from: Who;
   const players = p.to.length + 1;
   // con Firebase activo y la app en segundo plano, el sistema ya muestra el aviso push
   if (pushActive() && typeof document !== "undefined" && document.visibilityState !== "visible") return;
-  void notifyChallenge(p.from.nickname, `${p.mode === "hard" ? "🔥 Difícil" : "Normal"} · ${p.rounds} rondas · ${players} jugadores`);
+  void notifyChallenge(p.from.nickname, `${modeLabel(p.mode)} · ${p.rounds} rondas · ${players} jugadores`);
 }
 
 function onReply(p: { room: string; from: string; accept: boolean }) {
@@ -191,7 +191,7 @@ export function inviteFromPush(d: Record<string, string>) {
   set({
     incoming: {
       room: d.room,
-      mode: d.mode === "hard" ? "hard" : "normal",
+      mode: d.mode === "hard" ? "hard" : d.mode === "taz" ? "taz" : "normal",
       rounds: Number(d.rounds) === 2 ? 2 : 3,
       from: { id: d.fromId, nickname: d.fromName || "Un amigo" },
       others: people.filter((p) => p.id !== self?.id),
@@ -292,12 +292,13 @@ function onPresence() {
 function startRound(round: number, players: Who[]) {
   const m = state.match;
   if (!m) return;
-  const payload = { round, seed: Math.floor(Math.random() * 2 ** 31), players, hostId: m.hostId };
+  // el modo viaja con cada ronda: todos juegan lo que eligió quien retó
+  const payload = { round, seed: Math.floor(Math.random() * 2 ** 31), players, hostId: m.hostId, mode: m.mode };
   void send("round", payload);
   applyRound(payload);
 }
 
-function applyRound(p: { round: number; seed: number; players: Who[]; hostId: string }) {
+function applyRound(p: { round: number; seed: number; players: Who[]; hostId: string; mode?: BoardMode }) {
   const m = state.match;
   if (!m) return;
   clearTimers();
@@ -311,6 +312,7 @@ function applyRound(p: { round: number; seed: number; players: Who[]; hostId: st
   set({ outgoing: null });
   setMatch({
     round: p.round, players: fresh ? p.players : m.players, hostId: p.hostId, wins, totals,
+    mode: p.mode ?? m.mode,
     left: fresh ? [] : m.left, rematch: [], scores: {}, roundWinners: [], phase: "countdown", countdown: COUNTDOWN,
   });
   for (let i = 1; i <= COUNTDOWN; i++) {

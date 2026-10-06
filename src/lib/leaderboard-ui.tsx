@@ -7,6 +7,7 @@ import {
 import { ChallengeFriends } from "./multiplayer-ui";
 import { SkinAvatar } from "./character-skins";
 import { RecoverProfileForm } from "./options-ui";
+import { onFriends } from "./achievements";
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -95,7 +96,11 @@ export function LeaderboardModal({ initialMode, initialTab = "global", onClose }
     await syncScores();
     if (tab === "global") setRows(await globalBoard(mode));
     else if (tab === "friends") setRows(await friendsBoard(mode));
-    if (tab !== "global") setFriends(await myFriends());
+    if (tab !== "global") {
+      const list = await myFriends();
+      setFriends(list);
+      onFriends(list.filter((f) => f.status === "friend").length);
+    }
     setLoading(false);
   }, [tab, mode]);
 
@@ -140,11 +145,14 @@ export function LeaderboardModal({ initialMode, initialTab = "global", onClose }
                 +
               </button>
             </div>
-            {tab !== "add" && (
+            {tab !== "add" && initialMode !== "taz" && (
               <div className="mb-3 flex gap-2">
                 <button className={btn(mode === "normal")} onClick={() => setMode("normal")}>Normal</button>
                 <button className={btn(mode === "hard")} onClick={() => setMode("hard")}>🔥 Difícil</button>
               </div>
+            )}
+            {tab !== "add" && initialMode === "taz" && (
+              <div className="mb-3 text-center text-sm font-black text-red-300">🐈‍⬛ Atrapa al Taz</div>
             )}
             <div className="flex-1 overflow-y-auto pr-1">
               {tab === "friends" && <ChallengeFriends friends={friends} mode={mode} onSent={onClose} />}

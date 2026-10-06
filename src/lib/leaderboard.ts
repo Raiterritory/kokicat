@@ -2,7 +2,10 @@
 // (absolute URL), so it also works inside the offline APK when there is internet.
 import { supabase } from "@/integrations/supabase/client";
 
-export type BoardMode = "normal" | "hard";
+/** "taz" = modo Atrapa al Taz (migración 0015). */
+export type BoardMode = "normal" | "hard" | "taz";
+
+export const modeLabel = (m: BoardMode) => (m === "hard" ? "🔥 Difícil" : m === "taz" ? "🐈‍⬛ Atrapa al Taz" : "Normal");
 /** skin: id of the character the player uses (missing until the server has migration 0007). */
 export type BoardRow = { id: string; nickname: string; score: number; skin?: string };
 export type FriendRow = { id: string; nickname: string; status: "friend" | "sent" | "incoming" };
@@ -128,7 +131,7 @@ async function adoptProfile(row: ProfileRow): Promise<{ player: Player; restored
     restored = true;
   }
   // Los récords del ranking nunca bajan al recuperar: se toma el mayor entre el servidor y este teléfono
-  for (const [mode, key] of [["normal", "koki-best"], ["hard", "koki-best-hard"]] as const) {
+  for (const [mode, key] of [["normal", "koki-best"], ["hard", "koki-best-hard"], ["taz", "koki-best-taz"]] as const) {
     const rows = await friendsBoard(mode);
     const mine = rows?.find((r) => r.id === player.id)?.score ?? 0;
     if (mine > Number(localStorage.getItem(key) || 0)) localStorage.setItem(key, String(mine));
@@ -206,6 +209,8 @@ export async function syncScoresExact(): Promise<"exact" | "maxOnly" | "error" |
   ) => Promise<{ error: { message: string } | null }>)("set_score", args);
   void syncSkin();
   void backupProfile();
+  // récord de Atrapa al Taz (migración 0015; sin ella se ignora)
+  void rpc("set_taz_score", { p_id: p.id, p_secret: p.secret, p_score: Number(localStorage.getItem("koki-best-taz") || 0) });
   if (!error) return "exact";
   if (!/set_score|function|schema cache/i.test(error.message)) return "error";
   const fallback = await supabase.rpc("submit_score", args);

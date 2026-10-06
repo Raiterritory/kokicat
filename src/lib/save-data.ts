@@ -4,6 +4,7 @@ import { Capacitor } from "@capacitor/core";
 const SAVE_KEYS = [
   "koki-coins", "koki-unlocked", "koki-selected", "koki-best", "koki-best-hard",
   "koki-vol-music", "koki-vol-sfx", "koki-player",
+  "koki-best-taz", "koki-achievements", "koki-stats",
 ] as const;
 
 export type SaveFile = { app: "kokicat"; version: 1; exportedAt: string; data: Record<string, string> };
@@ -85,9 +86,17 @@ export function applySave(save: SaveFile) {
   const cur = currentData();
   const imp = save.data;
   const next: Record<string, string> = { ...cur, ...imp };
-  for (const k of ["koki-best", "koki-best-hard"] as const) {
+  for (const k of ["koki-best", "koki-best-hard", "koki-best-taz"] as const) {
     next[k] = String(Math.max(Number(cur[k] || 0), Number(imp[k] || 0)));
   }
+  // logros: se juntan los de ambos; estadísticas: el mayor de cada contador
+  const achievements = { ...readJSON<Record<string, number>>(imp["koki-achievements"], {}), ...readJSON<Record<string, number>>(cur["koki-achievements"], {}) };
+  next["koki-achievements"] = JSON.stringify(achievements);
+  const sCur = readJSON<Record<string, number>>(cur["koki-stats"], {});
+  const sImp = readJSON<Record<string, number>>(imp["koki-stats"], {});
+  const stats: Record<string, number> = { ...sImp };
+  for (const [k, v] of Object.entries(sCur)) stats[k] = Math.max(v, stats[k] ?? 0);
+  next["koki-stats"] = JSON.stringify(stats);
   const unlocked = Array.from(new Set([
     ...readJSON<string[]>(cur["koki-unlocked"], ["koki"]),
     ...readJSON<string[]>(imp["koki-unlocked"], ["koki"]),

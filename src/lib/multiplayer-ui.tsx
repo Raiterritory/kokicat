@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import type { BoardMode, FriendRow } from "./leaderboard";
+import { modeLabel, type BoardMode, type FriendRow } from "./leaderboard";
+import { onOnlineMatch } from "./achievements";
 import {
   type Match, useMp, ghosts, activePlayers, standings,
   sendInvite, cancelInvite, acceptInvite, declineInvite, leaveMatch, requestRematch, dismissRejected,
 } from "./multiplayer";
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation();
-const modeLabel = (m: BoardMode) => (m === "hard" ? "🔥 Difícil" : "Normal");
 const card = "w-full max-w-sm rounded-3xl border-2 border-white/10 bg-gradient-to-b from-indigo-900 to-slate-900 p-5 text-white shadow-2xl";
 const primary = "w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-6 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(127_29_29)] active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29)] disabled:opacity-50";
 const secondary = "w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_4px_0_rgba(0,0,0,0.3)] active:translate-y-0.5";
@@ -236,6 +236,9 @@ function FinalCard({ m, onExit }: { m: Match; onExit: () => void }) {
   const iWon = tiedTop.length === 1 && top.id === m.me.id;
   const others = activePlayers(m).filter((p) => p.id !== m.me.id);
   const tiedRounds = order.length > 1 && (m.wins[order[0].id] ?? 0) === (m.wins[order[1].id] ?? 0);
+
+  // logros "Retador" y "Campeón": una vez por partida terminada
+  useEffect(() => { onOnlineMatch(iWon); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onPointerDown={stop} onClick={stop}>
