@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { CHAR_BY_ID } from "./characters";
 
 /** Special skin effects painted over the character photo. */
-export type SkinFx = "rainbow" | "azul" | "rosa" | "verde" | "dorado" | "violeta" | "fuego" | "hielo";
+export type SkinFx = "rainbow" | "azul" | "rosa" | "verde" | "dorado" | "violeta" | "fuego" | "hielo" | "nieve";
 
 // Morado → azul → verde → amarillo → naranjo → rojo
 export const RAINBOW_COLORS = ["#8b3dff", "#2684ff", "#29c56f", "#ffe13b", "#ff9a2d", "#ff3f45"];
@@ -17,6 +17,8 @@ const RAMPS: Record<Exclude<SkinFx, "rainbow">, string[]> = {
   violeta: ["#1a0536", "#4f16a3", "#8a3dff", "#c99bff", "#f4ebff"],
   fuego: ["#2b0000", "#a10d0d", "#ef3b0c", "#ff9100", "#ffe066"],
   hielo: ["#2f7fae", "#6cc6ef", "#b5e9ff", "#e6f8ff", "#ffffff"],
+  // gato negro vuelto blanco: el pelaje queda blanco y los ojos, nariz y boca siguen oscuros
+  nieve: ["#1f252e", "#9aa6b4", "#e6ecf2", "#ffffff", "#ffffff"],
 };
 
 const spans = new WeakMap<HTMLImageElement, [number, number]>();
@@ -85,6 +87,8 @@ function paintRamp(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: nu
     if (d[p + 3] === 0) continue;
     const lum = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
     let t = (lum - lo) / (hi - lo);
+    // nieve: se aclaran los tonos medios para que el pelaje oscuro quede blanco
+    if (fx === "nieve") t = Math.pow(Math.min(1, Math.max(0, t)), 0.55);
     if (fx === "fuego") {
       // más amarillo arriba, más rojo abajo: parece que arde
       const py = Math.floor(p / 4 / W) / H;

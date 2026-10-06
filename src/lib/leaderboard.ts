@@ -106,11 +106,18 @@ export async function recoverPlayer(nick: string, code: string): Promise<{ playe
     if (missingFn(error.message)) return { error: "El servidor aún no tiene esta opción activada" };
     return { error: "Sin conexión, intenta de nuevo" };
   }
-  const row = (data as { id: string; secret: string; nickname: string; save_data: Record<string, unknown> | null }[])[0];
+  const row = (data as ProfileRow[])[0];
   if (!row) return { error: "El apodo o el código no coinciden" };
+  localStorage.setItem(RECOVERY_KEY, code.replace(/[^0-9a-f]/gi, "").toUpperCase());
+  return adoptProfile(row);
+}
+
+type ProfileRow = { id: string; secret: string; nickname: string; save_data: Record<string, unknown> | null };
+
+/** Uses a recovered profile on this phone: account, its save, and the higher records. */
+async function adoptProfile(row: ProfileRow): Promise<{ player: Player; restored: boolean }> {
   const player = { id: row.id, secret: row.secret, nickname: row.nickname };
   localStorage.setItem(KEY, JSON.stringify(player));
-  localStorage.setItem(RECOVERY_KEY, code.replace(/[^0-9a-f]/gi, "").toUpperCase());
 
   let restored = false;
   if (row.save_data && typeof row.save_data === "object") {
@@ -128,6 +135,41 @@ export async function recoverPlayer(nick: string, code: string): Promise<{ playe
   }
   window.dispatchEvent(new Event("koki-player"));
   return { player, restored };
+}
+
+// ---- Contraseña (migración 0011) ----
+
+/** true / false, or null when it can't be known (offline or server without the option). */
+export async function hasPassword(): Promise<boolean | null> {
+  const p = getPlayer();
+  if (!p) return null;
+  const { data, error } = await rpc("has_password", { p_id: p.id, p_secret: p.secret });
+  return error || typeof data !== "boolean" ? null : data;
+}
+
+export async function setPassword(password: string): Promise<{ ok: boolean; error?: string }> {
+  const p = getPlayer();
+  if (!p) return { ok: false, error: "Primero crea tu usuario online" };
+  if (password.length < 6) return { ok: false, error: "Usa al menos 6 caracteres" };
+  const { error } = await rpc("set_password", { p_id: p.id, p_secret: p.secret, p_password: password });
+  if (!error) return { ok: true };
+  if (error.message.includes("invalid_password")) return { ok: false, error: "Usa entre 6 y 64 caracteres" };
+  if (missingFn(error.message)) return { ok: false, error: "El servidor aún no tiene esta opción activada" };
+  return { ok: false, error: "Sin conexión, intenta de nuevo" };
+}
+
+/** Nickname + password -> signs this phone into that profile and restores its save. */
+export async function loginPlayer(nick: string, password: string): Promise<{ player?: Player; restored?: boolean; error?: string }> {
+  const { data, error } = await rpc("login_player", { p_nick: nick, p_password: password });
+  if (error) {
+    if (error.message.includes("locked")) return { error: "Demasiados intentos. Espera 10 minutos" };
+    if (error.message.includes("invalid_login")) return { error: "El apodo o la contraseña no coinciden" };
+    if (missingFn(error.message)) return { error: "El servidor aún no tiene esta opción activada" };
+    return { error: "Sin conexión, intenta de nuevo" };
+  }
+  const row = (data as ProfileRow[] | null)?.[0];
+  if (!row) return { error: "El apodo o la contraseña no coinciden" };
+  return adoptProfile(row);
 }
 
 /** Tells the server which skin this player uses, so it shows next to their name in the ranking. */

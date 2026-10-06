@@ -31,7 +31,7 @@ import {
 } from "@/lib/multiplayer";
 import { MultiplayerLayer } from "@/lib/multiplayer-ui";
 import { initPush } from "@/lib/push";
-import { SaveDataSection, OnlineAccountSection } from "@/lib/options-ui";
+import { SaveDataSection, OnlineAccountSection, PasswordPrompt } from "@/lib/options-ui";
 import { UpdatePrompt, InstalledVersion, CheckUpdateButton } from "@/lib/updater";
 import {
   playFlap, playMeow, playLogoSound, playBossStart,
@@ -1250,6 +1250,9 @@ function Game() {
 
         {/* Al abrir la app de Android: avisa si hay una versión nueva en GitHub */}
         <UpdatePrompt />
+
+        {/* Usuarios online sin contraseña: se les pide crearla */}
+        <PasswordPrompt />
 
         {showSettings && (
           <Overlay>

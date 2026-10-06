@@ -33,7 +33,7 @@ export const CHARACTERS: Character[] = [
   { id: "taz-violeta", name: "Taz Violeta", url: gatoNegroPng, price: 250, base: "taz", fx: "violeta" },
   { id: "taz-fuego", name: "Taz Fuego", url: gatoNegroPng, price: 450, base: "taz", fx: "fuego" },
   { id: "taz-hielo", name: "Taz Hielo", url: gatoNegroPng, price: 600, base: "taz", fx: "hielo" },
-  { id: "taz-bola-nieve", name: "Bola de Nieve", url: bolaNievePng, price: 50, base: "bola-nieve" },
+  { id: "taz-bola-nieve", name: "Bola de Nieve", url: bolaNievePng, price: 50, base: "bola-nieve", fx: "nieve" },
 
   // variantes de Gufi
   { id: "gufi-crema", name: "Gufi Crema", url: gufiAsset.url, price: 250, base: "gufi", filter: "saturate(0.5) brightness(1.35)" },

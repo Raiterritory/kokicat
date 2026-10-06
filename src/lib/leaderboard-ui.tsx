@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   type BoardMode, type BoardRow, type FriendRow, type Player,
   getPlayer, registerPlayer, syncScores, globalBoard, friendsBoard,
-  searchPlayers, myFriends, sendRequest, respondRequest, removeFriend,
+  searchPlayers, myFriends, sendRequest, respondRequest, removeFriend, setPassword,
 } from "./leaderboard";
 import { ChallengeFriends } from "./multiplayer-ui";
 import { SkinAvatar } from "./character-skins";
@@ -12,15 +12,22 @@ const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
 export function NicknameForm({ onDone }: { onDone: (p: Player) => void }) {
   const [nick, setNick] = useState("");
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const submit = async () => {
     setBusy(true); setErr("");
     const r = await registerPlayer(nick);
+    if (r.error) { setBusy(false); setErr(r.error); return; }
+    // la contraseña sirve para recuperar el usuario si se borra la app
+    // (si el servidor aún no la acepta, el juego la pedirá después)
+    await setPassword(pw);
     setBusy(false);
-    if (r.error) setErr(r.error);
-    else if (r.player) { await syncScores(); onDone(r.player); }
+    if (r.player) { await syncScores(); onDone(r.player); }
   };
+  const field = "rounded-full bg-white px-4 py-2 font-bold text-slate-800 outline-none";
+  const mismatch = pw2.length > 0 && pw !== pw2;
   return (
     <div className="flex flex-col gap-2" onPointerDown={stop} onClick={stop}>
       <div className="text-sm font-bold text-white/90">Elige tu apodo para el ranking</div>
@@ -29,11 +36,15 @@ export function NicknameForm({ onDone }: { onDone: (p: Player) => void }) {
         maxLength={16}
         onChange={(e) => setNick(e.target.value)}
         placeholder="Tu apodo"
-        className="rounded-full bg-white px-4 py-2 font-bold text-slate-800 outline-none"
+        className={field}
       />
+      <input type="password" value={pw} maxLength={64} onChange={(e) => setPw(e.target.value)} placeholder="Contraseña (mínimo 6)" className={field} />
+      <input type="password" value={pw2} maxLength={64} onChange={(e) => setPw2(e.target.value)} placeholder="Repite la contraseña" className={field} />
+      <div className="text-[11px] text-white/60">Con tu apodo y contraseña recuperas tu perfil si borras la app.</div>
+      {mismatch && <div className="text-xs font-bold text-red-300">Las contraseñas no son iguales</div>}
       {err && <div className="text-xs font-bold text-red-300">{err}</div>}
       <button
-        disabled={busy || nick.trim().length < 3}
+        disabled={busy || nick.trim().length < 3 || pw.length < 6 || pw !== pw2}
         onClick={submit}
         className="rounded-full bg-gradient-to-b from-amber-300 to-orange-500 px-4 py-2 font-black text-white disabled:opacity-50"
       >
