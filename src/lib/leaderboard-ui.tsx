@@ -5,6 +5,7 @@ import {
   searchPlayers, myFriends, sendRequest, respondRequest, removeFriend,
 } from "./leaderboard";
 import { ChallengeFriends } from "./multiplayer-ui";
+import { SkinAvatar } from "./character-skins";
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -51,6 +52,7 @@ function Rows({ rows, meId }: { rows: BoardRow[]; meId?: string }) {
           className={`flex items-center gap-3 rounded-xl px-3 py-2 font-bold ${r.id === meId ? "bg-amber-400/90 text-slate-900" : "bg-white/10 text-white"}`}
         >
           <span className="w-7 text-center">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</span>
+          {r.skin && <SkinAvatar skin={r.skin} className="h-8 w-8 shrink-0" />}
           <span className="flex-1 truncate">{r.nickname}</span>
           <span className="font-black">{r.score}</span>
         </li>
@@ -115,7 +117,13 @@ export function LeaderboardModal({ initialMode, initialTab = "global", onClose }
               <button className={btn(tab === "friends")} onClick={() => setTab("friends")}>
                 👥 Amigos{incoming.length ? ` (${incoming.length})` : ""}
               </button>
-              <button className={btn(tab === "add")} onClick={() => setTab("add")}>➕</button>
+              <button
+                aria-label="Agregar amigos"
+                onClick={() => setTab("add")}
+                className={`flex-1 rounded-full px-3 py-1.5 text-xl font-black leading-none text-white ${tab === "add" ? "bg-white/30 ring-2 ring-white" : "bg-white/10"}`}
+              >
+                +
+              </button>
             </div>
             {tab !== "add" && (
               <div className="mb-3 flex gap-2">

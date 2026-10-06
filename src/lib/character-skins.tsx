@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { CHAR_BY_ID } from "./characters";
 
 /** Special skin effects painted over the character photo. */
 export type SkinFx = "rainbow" | "azul" | "rosa" | "verde" | "dorado" | "violeta" | "fuego" | "hielo";
@@ -230,4 +231,19 @@ export function SkinPreview({ url, fx, label, className }: { url: string; fx: Sk
     img.src = url;
   }, [url, fx]);
   return <canvas ref={ref} width={160} height={160} role="img" aria-label={label} className={className} />;
+}
+
+/** Small picture of the skin a player uses (ranking, lists). Unknown ids fall back to Koki. */
+export function SkinAvatar({ skin, className }: { skin: string; className?: string }) {
+  const c = CHAR_BY_ID[skin] ?? CHAR_BY_ID.koki;
+  if (c.fx) return <SkinPreview url={c.url} fx={c.fx} label={c.name} className={className} />;
+  return (
+    <img
+      src={c.url}
+      alt={c.name}
+      title={c.name}
+      style={c.filter ? { filter: c.filter } : undefined}
+      className={`object-contain ${className ?? ""}`}
+    />
+  );
 }

@@ -3,7 +3,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export type BoardMode = "normal" | "hard";
-export type BoardRow = { id: string; nickname: string; score: number };
+/** skin: id of the character the player uses (missing until the server has migration 0007). */
+export type BoardRow = { id: string; nickname: string; score: number; skin?: string };
 export type FriendRow = { id: string; nickname: string; status: "friend" | "sent" | "incoming" };
 export type Player = { id: string; secret: string; nickname: string };
 
@@ -35,7 +36,7 @@ export async function registerPlayer(nick: string): Promise<{ player?: Player; e
 export async function deletePlayer(): Promise<{ ok: boolean; error?: string }> {
   const p = getPlayer();
   if (!p) return { ok: true };
-  // delete_player is added by migration 0001; not yet in the generated types
+  // delete_player comes from migration 0004
   const { error } = await (supabase.rpc as unknown as (
     fn: string, args: Record<string, unknown>,
   ) => Promise<{ error: { message: string } | null }>)("delete_player", { p_id: p.id, p_secret: p.secret });
@@ -54,10 +55,20 @@ export async function deletePlayer(): Promise<{ ok: boolean; error?: string }> {
   return { ok: true };
 }
 
+/** Tells the server which skin this player uses, so it shows next to their name in the ranking. */
+export async function syncSkin() {
+  const p = getPlayer();
+  if (!p) return;
+  // set_skin is added by migration 0007; not yet in the generated types
+  await (supabase.rpc as unknown as (fn: string, a: Record<string, unknown>) => Promise<unknown>)(
+    "set_skin", { p_id: p.id, p_secret: p.secret, p_skin: localStorage.getItem("koki-selected") || "koki" },
+  );
+}
+
 /**
  * Uploads local records exactly as they are on this device (they can go down,
  * e.g. after wiping the save). Falls back to the max-only submit_score while
- * the set_score function (migration 0002) is not on the server yet.
+ * the set_score function (migration 0005) is not on the server yet.
  */
 export async function syncScores(): Promise<boolean> {
   return (await syncScoresExact()) !== "error";
@@ -76,6 +87,7 @@ export async function syncScoresExact(): Promise<"exact" | "maxOnly" | "error" |
   const { error } = await (supabase.rpc as unknown as (
     fn: string, a: Record<string, unknown>,
   ) => Promise<{ error: { message: string } | null }>)("set_score", args);
+  void syncSkin();
   if (!error) return "exact";
   if (!/set_score|function|schema cache/i.test(error.message)) return "error";
   const fallback = await supabase.rpc("submit_score", args);

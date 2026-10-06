@@ -34,7 +34,7 @@ export async function initPush(onTap: (data: Record<string, string>) => void) {
 export async function savePushToken() {
   const p = getPlayer();
   if (!p || !token) return;
-  // save_push_token is added by migration 0003; not yet in the generated types
+  // save_push_token comes from migration 0006
   await (supabase.rpc as unknown as (fn: string, a: Record<string, unknown>) => Promise<unknown>)(
     "save_push_token", { p_id: p.id, p_secret: p.secret, p_token: token },
   );

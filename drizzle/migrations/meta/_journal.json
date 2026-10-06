@@ -10,27 +10,6 @@
       "breakpoints": true
     },
     {
-      "idx": 1,
-      "version": "7",
-      "when": 1791141367518,
-      "tag": "0001_delete_player",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1791141949341,
-      "tag": "0002_set_score",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1791145243670,
-      "tag": "0003_push_tokens",
-      "breakpoints": true
-    },
-    {
       "idx": 4,
       "version": "7",
       "when": 1791159569340,
@@ -49,6 +28,13 @@
       "version": "7",
       "when": 1791159602199,
       "tag": "0006_push_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791309296135,
+      "tag": "0007_player_skin",
       "breakpoints": true
     }
   ]

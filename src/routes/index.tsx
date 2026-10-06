@@ -1,10 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
-import kokiAsset from "@/assets/koki-real.png.asset.json";
 import menuLogo from "@/assets/koki-menu-logo.png.asset.json";
-import gatoNegroPng from "@/assets/gato-negro.png";
-import gufiAsset from "@/assets/gufi.png.asset.json";
-import ratonAsset from "@/assets/raton.png.asset.json";
 import pastelitoImg from "@/assets/pastelito.png";
 import bossPng from "@/assets/boss.png";
 import claudeIcon from "@/assets/claude-icon.png";
@@ -26,8 +22,9 @@ import {
   updateBoss,
   type BossState,
 } from "@/lib/bossfight";
-import { drawSkinCharacter, SkinPreview, type SkinFx } from "@/lib/character-skins";
-import { syncScores, syncScoresExact, loadRivals, type BoardRow } from "@/lib/leaderboard";
+import { drawSkinCharacter, SkinPreview } from "@/lib/character-skins";
+import { CHARACTERS, CHAR_BY_ID } from "@/lib/characters";
+import { syncScores, syncScoresExact, syncSkin, loadRivals, type BoardRow } from "@/lib/leaderboard";
 import { LeaderboardModal, GameOverFriends, type Tab as BoardTab } from "@/lib/leaderboard-ui";
 import {
   useMp, getMp, ghosts, initLobby, setRoundStarter, reportPos, reportDead, seededRandom, inviteFromPush,
@@ -116,48 +113,6 @@ type GameState = "menu" | "characters" | "ready" | "playing" | "over";
 type Mode = "normal" | "hard";
 
 
-type Character = {
-  id: string;
-  name: string;
-  url: string;
-  price: number;
-  base: string;
-  filter?: string;
-  fx?: SkinFx;
-};
-
-const CHARACTERS: Character[] = [
-  // base
-  { id: "koki", name: "Koki", url: kokiAsset.url, price: 0, base: "koki" },
-  { id: "taz", name: "Taz", url: gatoNegroPng, price: 60, base: "taz" },
-  { id: "gufi", name: "Gufi", url: gufiAsset.url, price: 60, base: "gufi" },
-  { id: "raton", name: "Ratón", url: ratonAsset.url, price: 120, base: "raton" },
-
-  // variantes de Koki
-  { id: "koki-azul", name: "Koki Azul", url: kokiAsset.url, price: 200, base: "koki", fx: "azul" },
-  { id: "koki-rosa", name: "Koki Rosa", url: kokiAsset.url, price: 300, base: "koki", fx: "rosa" },
-  { id: "koki-verde", name: "Koki Verde", url: kokiAsset.url, price: 400, base: "koki", fx: "verde" },
-  { id: "koki-dorado", name: "Koki Dorado", url: kokiAsset.url, price: 800, base: "koki", fx: "dorado" },
-
-  // variantes de Taz
-  { id: "taz-violeta", name: "Taz Violeta", url: gatoNegroPng, price: 250, base: "taz", fx: "violeta" },
-  { id: "taz-fuego", name: "Taz Fuego", url: gatoNegroPng, price: 450, base: "taz", fx: "fuego" },
-  { id: "taz-hielo", name: "Taz Hielo", url: gatoNegroPng, price: 600, base: "taz", fx: "hielo" },
-
-  // variantes de Gufi
-  { id: "gufi-crema", name: "Gufi Crema", url: gufiAsset.url, price: 250, base: "gufi", filter: "saturate(0.5) brightness(1.35)" },
-  { id: "gufi-menta", name: "Gufi Menta", url: gufiAsset.url, price: 500, base: "gufi", filter: "hue-rotate(120deg) saturate(1.5) brightness(1.1)" },
-  { id: "gufi-neon", name: "Gufi Neón", url: gufiAsset.url, price: 700, base: "gufi", filter: "hue-rotate(290deg) saturate(3) brightness(1.2)" },
-
-  // variantes de Ratón
-  { id: "raton-blanco", name: "Ratón Blanco", url: ratonAsset.url, price: 350, base: "raton", filter: "saturate(0.2) brightness(1.7)" },
-  { id: "raton-cyber", name: "Ratón Cyber", url: ratonAsset.url, price: 900, base: "raton", filter: "hue-rotate(200deg) saturate(3.5) brightness(1.25)" },
-  { id: "raton-arcoiris", name: "Ratón Arcoíris", url: ratonAsset.url, price: 1000, base: "raton", fx: "rainbow" },
-];
-
-const CHAR_BY_ID: Record<string, Character> = Object.fromEntries(
-  CHARACTERS.map((c) => [c.id, c]),
-);
 
 function loadUnlocked(): string[] {
   try {
@@ -998,6 +953,7 @@ function Game() {
     if (!unlocked.includes(id)) return;
     setSelectedId(id);
     localStorage.setItem("koki-selected", id);
+    void syncSkin();
   };
 
   const tryUnlock = (id: string) => {
