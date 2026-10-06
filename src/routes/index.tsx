@@ -32,6 +32,7 @@ import {
 import { MultiplayerLayer } from "@/lib/multiplayer-ui";
 import { initPush } from "@/lib/push";
 import { SaveDataSection, OnlineAccountSection } from "@/lib/options-ui";
+import { UpdatePrompt } from "@/lib/updater";
 import {
   playFlap, playMeow, playLogoSound, playBossStart,
   startMusic, setMusicVolume, setSfxVolume,
@@ -1243,6 +1244,9 @@ function Game() {
         )}
 
         <MultiplayerLayer onExit={goToMenu} />
+
+        {/* Al abrir la app de Android: avisa si hay una versión nueva en GitHub */}
+        <UpdatePrompt />
 
         {showSettings && (
           <Overlay>
