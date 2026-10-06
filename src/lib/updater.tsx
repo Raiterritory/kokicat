@@ -66,32 +66,53 @@ function notesFrom(body: string) {
     .slice(0, 12);
 }
 
-export async function checkForUpdate(ignoreLater = false): Promise<UpdateInfo | null> {
-  if (!Capacitor.isNativePlatform()) return null;
+export type LookupResult =
+  | { status: "update"; info: UpdateInfo }
+  | { status: "latest"; installed: string }
+  | { status: "error" }
+  | { status: "web" };
+
+/** Asks GitHub for the latest release and compares it with the installed version. */
+export async function lookupUpdate(ignoreLater = false): Promise<LookupResult> {
+  if (!Capacitor.isNativePlatform()) return { status: "web" };
   try {
     const { App } = await import("@capacitor/app");
     const installed = (await App.getInfo()).version;
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
       headers: { Accept: "application/vnd.github+json" },
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { status: "error" };
     const rel = (await res.json()) as { tag_name?: string; body?: string; assets?: { name: string; browser_download_url: string; size: number }[] };
     const latest = String(rel.tag_name ?? "").replace(/^v/i, "");
-    if (!latest || compareVersions(latest, installed) <= 0) {
-      void clearBar(); // ya está al día: se quita un aviso viejo de la barra
-      return null;
-    }
     const apk = (rel.assets ?? []).find((a) => a.name.toLowerCase().endsWith(".apk"));
-    if (!apk) return null;
+    if (!latest || !apk || compareVersions(latest, installed) <= 0) {
+      void clearBar(); // ya está al día: se quita un aviso viejo de la barra
+      return { status: "latest", installed };
+    }
     // "Más tarde": no volver a preguntar por esta misma versión durante unas horas
     try {
       const later = JSON.parse(localStorage.getItem(LATER_KEY) || "null") as { v: string; t: number } | null;
-      if (!ignoreLater && later && later.v === latest && Date.now() - later.t < LATER_MS) return null;
+      if (!ignoreLater && later && later.v === latest && Date.now() - later.t < LATER_MS) return { status: "latest", installed };
     } catch { /* sin dato */ }
-    return { version: latest, notes: notesFrom(rel.body ?? ""), apkUrl: apk.browser_download_url, size: apk.size };
+    return { status: "update", info: { version: latest, notes: notesFrom(rel.body ?? ""), apkUrl: apk.browser_download_url, size: apk.size } };
   } catch {
-    return null; // sin internet: se revisa la próxima vez
+    return { status: "error" }; // sin internet: se revisa la próxima vez
   }
+}
+
+export async function checkForUpdate(ignoreLater = false): Promise<UpdateInfo | null> {
+  const r = await lookupUpdate(ignoreLater);
+  return r.status === "update" ? r.info : null;
+}
+
+// El botón "Buscar actualización" de Opciones le pide a la ventana que se muestre
+const SHOW_EVENT = "koki-show-update";
+
+/** "Buscar actualización": checks now (ignoring "Más tarde") and opens the window if there is one. */
+export async function manualUpdateCheck(): Promise<LookupResult> {
+  const r = await lookupUpdate(true);
+  if (r.status === "update") window.dispatchEvent(new CustomEvent<UpdateInfo>(SHOW_EVENT, { detail: r.info }));
+  return r;
 }
 
 /** Downloads the APK into the app's cache (reporting 0..1) and returns its file uri. */
@@ -144,6 +165,34 @@ export function InstalledVersion({ className }: { className?: string }) {
   return <div className={className}>{version === "web" ? "Versión web" : `Versión ${version} instalada`}</div>;
 }
 
+/** Options button: looks for the latest version right now. */
+export function CheckUpdateButton() {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const check = async () => {
+    setBusy(true);
+    setMsg("");
+    const r = await manualUpdateCheck();
+    setBusy(false);
+    if (r.status === "latest") setMsg(`✅ Tienes la última versión (${r.installed})`);
+    else if (r.status === "update") setMsg(`🎉 Hay una versión nueva: ${r.info.version}`);
+    else if (r.status === "web") setMsg("En el navegador siempre juegas la última versión");
+    else setMsg("📡 Sin conexión, intenta de nuevo");
+  };
+  return (
+    <div className="mb-5">
+      <button
+        onClick={check}
+        disabled={busy}
+        className="w-full rounded-xl bg-gradient-to-b from-sky-500 to-blue-700 px-4 py-2 font-black text-white active:translate-y-0.5 disabled:opacity-60"
+      >
+        {busy ? "Buscando…" : "🔄 Buscar actualización"}
+      </button>
+      {msg && <div className="mt-2 text-center text-xs font-bold text-white/80">{msg}</div>}
+    </div>
+  );
+}
+
 type Step = "ask" | "downloading" | "ready" | "error";
 
 /** Window that appears on start when a newer version is published. */
@@ -175,7 +224,13 @@ export function UpdatePrompt() {
         if (alive) remove = () => void h.remove(); else void h.remove();
       });
     }
-    return () => { alive = false; remove?.(); };
+    // pedido desde el botón "Buscar actualización" de Opciones
+    const onShow = (e: Event) => {
+      setInfo((e as CustomEvent<UpdateInfo>).detail);
+      setStep(fileRef.current ? "ready" : "ask");
+    };
+    window.addEventListener(SHOW_EVENT, onShow);
+    return () => { alive = false; remove?.(); window.removeEventListener(SHOW_EVENT, onShow); };
   }, []);
 
   if (!info) return null;

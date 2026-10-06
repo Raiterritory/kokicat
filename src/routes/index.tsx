@@ -32,7 +32,7 @@ import {
 import { MultiplayerLayer } from "@/lib/multiplayer-ui";
 import { initPush } from "@/lib/push";
 import { SaveDataSection, OnlineAccountSection } from "@/lib/options-ui";
-import { UpdatePrompt, InstalledVersion } from "@/lib/updater";
+import { UpdatePrompt, InstalledVersion, CheckUpdateButton } from "@/lib/updater";
 import {
   playFlap, playMeow, playLogoSound, playBossStart,
   startMusic, setMusicVolume, setSfxVolume,
@@ -1301,6 +1301,7 @@ function Game() {
                 />
               </label>
 
+              <CheckUpdateButton />
               <SaveDataSection />
               <OnlineAccountSection />
 
