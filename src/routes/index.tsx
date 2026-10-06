@@ -33,6 +33,7 @@ import { MultiplayerLayer } from "@/lib/multiplayer-ui";
 import { initPush } from "@/lib/push";
 import { SaveDataSection, OnlineAccountSection, PasswordPrompt } from "@/lib/options-ui";
 import { UpdatePrompt, InstalledVersion, CheckUpdateButton } from "@/lib/updater";
+import { AdminPanel } from "@/lib/admin";
 import {
   playFlap, playMeow, playLogoSound, playBossStart,
   startMusic, setMusicVolume, setSfxVolume,
@@ -140,6 +141,7 @@ function Game() {
   const [debugPass, setDebugPass] = useState("");
   const [debugMsg, setDebugMsg] = useState("");
   const [debugOpen, setDebugOpen] = useState(false);
+  const [debugUnlocked, setDebugUnlocked] = useState(false);
   const [confirmWipe, setConfirmWipe] = useState(false);
   const [wipeMsg, setWipeMsg] = useState("");
   const [showBoard, setShowBoard] = useState(false);
@@ -987,6 +989,7 @@ function Game() {
     localStorage.setItem("koki-coins", String(newCoins));
     setDebugPass("");
     setDebugMsg("¡Modo debug activo! Todo desbloqueado 🎉");
+    setDebugUnlocked(true);
   };
 
   const wipeData = () => {
@@ -1336,6 +1339,8 @@ function Game() {
                     {debugMsg && (
                       <div className="mt-2 text-center text-xs font-bold text-white/80">{debugMsg}</div>
                     )}
+                    {/* el servidor decide si este usuario puede administrar */}
+                    {debugUnlocked && <AdminPanel />}
                   </div>
                 )}
               </div>
