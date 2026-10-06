@@ -57,6 +57,8 @@ export type Database = {
           created_at: string
           id: string
           nickname: string
+          recovery_code: string | null
+          save_data: Json | null
           secret: string
           skin: string
           updated_at: string
@@ -67,6 +69,8 @@ export type Database = {
           created_at?: string
           id?: string
           nickname: string
+          recovery_code?: string | null
+          save_data?: Json | null
           secret?: string
           skin?: string
           updated_at?: string
@@ -77,6 +81,8 @@ export type Database = {
           created_at?: string
           id?: string
           nickname?: string
+          recovery_code?: string | null
+          save_data?: Json | null
           secret?: string
           skin?: string
           updated_at?: string
@@ -131,6 +137,10 @@ export type Database = {
           skin: string
         }[]
       }
+      get_recovery_code: {
+        Args: { p_id: string; p_secret: string }
+        Returns: string
+      }
       global_leaderboard: {
         Args: { p_limit?: number; p_mode: string }
         Returns: {
@@ -146,6 +156,15 @@ export type Database = {
           id: string
           nickname: string
           status: string
+        }[]
+      }
+      recover_player: {
+        Args: { p_code: string; p_nick: string }
+        Returns: {
+          id: string
+          nickname: string
+          save_data: Json
+          secret: string
         }[]
       }
       register_player: {
@@ -167,6 +186,10 @@ export type Database = {
           p_id: string
           p_secret: string
         }
+        Returns: undefined
+      }
+      save_profile: {
+        Args: { p_data: Json; p_id: string; p_secret: string }
         Returns: undefined
       }
       save_push_token: {

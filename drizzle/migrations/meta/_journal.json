@@ -50,6 +50,13 @@
       "when": 1791320874257,
       "tag": "0009_profile_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791321236872,
+      "tag": "0010_0009_profile_recovery",
+      "breakpoints": true
     }
   ]
 }
