@@ -32,7 +32,7 @@ import {
 import { MultiplayerLayer } from "@/lib/multiplayer-ui";
 import { initPush } from "@/lib/push";
 import { SaveDataSection, OnlineAccountSection } from "@/lib/options-ui";
-import { UpdatePrompt } from "@/lib/updater";
+import { UpdatePrompt, InstalledVersion } from "@/lib/updater";
 import {
   playFlap, playMeow, playLogoSound, playBossStart,
   startMusic, setMusicVolume, setSfxVolume,
@@ -1256,7 +1256,10 @@ function Game() {
               className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-3xl bg-gradient-to-b from-slate-800 to-slate-900 p-6 shadow-2xl border-2 border-white/10"
             >
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-2xl font-black text-white">🔧 Opciones</h2>
+                <div>
+                  <h2 className="text-2xl font-black text-white">🔧 Opciones</h2>
+                  <InstalledVersion className="text-xs font-bold text-white/60" />
+                </div>
                 <button
                   onClick={() => setShowSettings(false)}
                   className="h-9 w-9 rounded-full bg-white/15 text-white font-bold active:scale-95"

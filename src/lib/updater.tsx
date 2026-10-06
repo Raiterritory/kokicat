@@ -130,6 +130,20 @@ async function openInstaller(uri: string) {
   await FileOpener.open({ filePath: uri, contentType: "application/vnd.android.package-archive", openWithDefault: true });
 }
 
+/** Installed app version (from Android), shown in the Options window. */
+export function InstalledVersion({ className }: { className?: string }) {
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) { setVersion("web"); return; }
+    void import("@capacitor/app")
+      .then(({ App }) => App.getInfo())
+      .then((i) => setVersion(i.version))
+      .catch(() => setVersion(null));
+  }, []);
+  if (!version) return null;
+  return <div className={className}>{version === "web" ? "Versión web" : `Versión ${version} instalada`}</div>;
+}
+
 type Step = "ask" | "downloading" | "ready" | "error";
 
 /** Window that appears on start when a newer version is published. */
