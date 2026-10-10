@@ -314,13 +314,15 @@ type Screen = "menu" | "playing" | "result";
 
 /** The whole mode: its menu (logo, Jugar, Ranking, Multijugador), the game and the results. */
 export function TazModeScreen({
-  onBack, onRanking, onMultiplayer, logoHandlers, style,
+  onBack, onRanking, onMultiplayer, logoHandlers, style, contentStyle,
 }: {
   onBack: () => void; onRanking: () => void; onMultiplayer: () => void;
   /** finger-drag handlers for the logo (switches back to KokiCat) */
   logoHandlers?: React.HTMLAttributes<HTMLDivElement>;
   /** opacity/position while the modes cross-fade */
   style?: React.CSSProperties;
+  /** slide of the content only (the background just fades, no visible edge) */
+  contentStyle?: React.CSSProperties;
 }) {
   const [screen, setScreen] = useState<Screen>("menu");
   const [seed, setSeed] = useState(1);
@@ -352,7 +354,7 @@ export function TazModeScreen({
   return (
     <div className="absolute inset-0 z-20 isolate overflow-y-auto bg-sky-300" style={style} onPointerDown={(e) => e.stopPropagation()}>
       <div className="fixed inset-0 -z-10"><GardenBackground /></div>
-      <div className="flex min-h-full flex-col items-center justify-center gap-4 p-6 text-center short:flex-row short:gap-8">
+      <div className="flex min-h-full flex-col items-center justify-center gap-4 p-6 text-center short:flex-row short:gap-8" style={contentStyle}>
         {/* logo: arrastrarlo hacia la izquierda (con el dedo puesto) vuelve a KokiCat */}
         <div className="flex w-full max-w-[300px] cursor-grab touch-none select-none flex-col items-center short:max-w-[240px]" style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }} {...logoHandlers}>
           <TazLogo className="w-full max-w-[300px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.45)] short:max-w-[240px]" />

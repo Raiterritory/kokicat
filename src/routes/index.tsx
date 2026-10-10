@@ -1095,9 +1095,9 @@ function Game() {
 
         {state === "menu" && tazP < 1 && (
           // mientras se arrastra hacia "Atrapa al Taz" este menú se desvanece y se corre
-          <div className="absolute inset-0" style={{ opacity: 1 - tazP, transform: `translateX(${-tazP * 25}%)` }}>
+          <div className="absolute inset-0" style={{ opacity: 1 - tazP }}>
           <Overlay>
-            <div className="flex w-full max-w-sm flex-col items-center gap-4 px-6 text-center short:max-w-3xl short:flex-row short:gap-8">
+            <div className="flex w-full max-w-sm flex-col items-center gap-4 px-6 text-center short:max-w-3xl short:flex-row short:gap-8" style={{ transform: `translateX(${-tazP * 25}%)` }}>
               <div className="flex w-full flex-col items-center gap-4 short:w-1/2">
               {/* modo sorpresa: arrastrar el logo hacia la derecha (con el dedo puesto) va
                   pasando a "Atrapa al Taz" (sin pista); tocarlo sin arrastrar, su sonido */}
@@ -1346,7 +1346,8 @@ function Game() {
           <TazModeScreen
             onBack={() => modeSwipe.animateTo(0)}
             logoHandlers={modeSwipe.handlers}
-            style={{ opacity: tazP, transform: `translateX(${(1 - tazP) * 25}%)` }}
+            style={{ opacity: tazP }}
+            contentStyle={{ transform: `translateX(${(1 - tazP) * 25}%)` }}
             onRanking={() => { setBoardMode("taz"); setBoardTab("global"); setShowBoard(true); }}
             onMultiplayer={() => { setBoardMode("taz"); setBoardTab("friends"); setShowBoard(true); }}
           />
