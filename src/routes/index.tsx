@@ -38,6 +38,7 @@ import {
   AchievementToast, AchievementsModal, onFlappyGameEnd, onBossBeaten, onGoldenCaught, onTazGameEnd, onCharacters,
 } from "@/lib/achievements";
 import { TazModeScreen, TazGame } from "@/lib/taz-game";
+import { useModeSwipe } from "@/lib/mode-swipe";
 import {
   playFlap, playMeow, playLogoSound, playBossStart,
   startMusic, setMusicVolume, setSfxVolume,
@@ -154,10 +155,13 @@ function Game() {
   // ranking abierto desde Atrapa al Taz (solo ese modo)
   const [boardMode, setBoardMode] = useState<BoardMode | null>(null);
   // modo Atrapa al Taz: su pantalla, y la ronda online en curso
-  const [tazScreen, setTazScreen] = useState(false);
+  // 0 = menú de Koki, 1 = Atrapa al Taz; los valores intermedios son el desvanecido mientras se arrastra
+  const [tazP, setTazP] = useState(0);
+  const tazScreen = tazP >= 1;
+  const setTazScreen = (on: boolean) => setTazP(on ? 1 : 0);
+  const modeSwipe = useModeSwipe(tazP, setTazP);
   const [tazMatch, setTazMatch] = useState<{ seed: number; round: number } | null>(null);
   const [showAchievements, setShowAchievements] = useState(false);
-  const logoSwipe = useRef<number | null>(null);
   const tazReport = useRef(0);
   useEffect(() => {
     void syncScores();
@@ -1089,23 +1093,21 @@ function Game() {
           className="block h-full w-full touch-none select-none"
         />
 
-        {state === "menu" && !tazScreen && (
+        {state === "menu" && tazP < 1 && (
+          // mientras se arrastra hacia "Atrapa al Taz" este menú se desvanece y se corre
+          <div className="absolute inset-0" style={{ opacity: 1 - tazP, transform: `translateX(${-tazP * 25}%)` }}>
           <Overlay>
             <div className="flex w-full max-w-sm flex-col items-center gap-4 px-6 text-center short:max-w-3xl short:flex-row short:gap-8">
               <div className="flex w-full flex-col items-center gap-4 short:w-1/2">
-              {/* modo sorpresa: deslizar el logo hacia la derecha abre "Atrapa al Taz" (sin pista); tocarlo, su sonido */}
+              {/* modo sorpresa: arrastrar el logo hacia la derecha (con el dedo puesto) va
+                  pasando a "Atrapa al Taz" (sin pista); tocarlo sin arrastrar, su sonido */}
               <img
                 src={menuLogo.url}
                 alt="Estamos aqui con Koki"
                 draggable={false}
-                onPointerDown={(e) => { logoSwipe.current = e.clientX; }}
-                onPointerUp={(e) => {
-                  const start = logoSwipe.current;
-                  logoSwipe.current = null;
-                  if (start != null && e.clientX - start > 60) { e.stopPropagation(); setTazScreen(true); }
-                }}
-                onClick={(e) => { e.stopPropagation(); playLogoSound(); }}
-                className="w-full max-w-[300px] short:max-w-[260px] cursor-pointer touch-pan-y select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform active:scale-95"
+                {...modeSwipe.handlers}
+                onClick={(e) => { e.stopPropagation(); if (!modeSwipe.wasDrag()) playLogoSound(); }}
+                className="w-full max-w-[300px] short:max-w-[260px] cursor-pointer touch-none select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
                 style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }}
               />
               <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5 text-white font-bold text-sm backdrop-blur">
@@ -1151,6 +1153,7 @@ function Game() {
               </div>
             </div>
           </Overlay>
+          </div>
         )}
 
         {state === "menu" && pickMode && (
@@ -1339,9 +1342,11 @@ function Game() {
         <PasswordPrompt />
 
         {/* Modo Atrapa al Taz (pantalla propia) y su ronda online en curso */}
-        {tazScreen && !tazMatch && (
+        {tazP > 0 && !tazMatch && (
           <TazModeScreen
-            onBack={() => setTazScreen(false)}
+            onBack={() => modeSwipe.animateTo(0)}
+            logoHandlers={modeSwipe.handlers}
+            style={{ opacity: tazP, transform: `translateX(${(1 - tazP) * 25}%)` }}
             onRanking={() => { setBoardMode("taz"); setBoardTab("global"); setShowBoard(true); }}
             onMultiplayer={() => { setBoardMode("taz"); setBoardTab("friends"); setShowBoard(true); }}
           />

@@ -3,6 +3,7 @@
 // The pop-up schedule comes from a seed, so in multiplayer everyone gets the same Taz at the same time.
 import { useEffect, useRef, useState } from "react";
 import tazPng from "@/assets/gato-negro.png";
+import tazHeadPng from "@/assets/taz-head.png";
 import { seededRandom, getMp, ghosts, activePlayers } from "./multiplayer";
 import { syncScores } from "./leaderboard";
 import { onTazGameEnd } from "./achievements";
@@ -252,18 +253,80 @@ export function TazGame({
   );
 }
 
+// Letras pixeladas (7x7) como las de "KOKI" en el logo original
+const GLYPHS: Record<string, string[]> = {
+  T: ["#######", "#######", "..###..", "..###..", "..###..", "..###..", "..###.."],
+  A: [".#####.", "###.###", "##...##", "#######", "#######", "##...##", "##...##"],
+  Z: ["#######", "#######", "....###", "..###..", "###....", "#######", "#######"],
+};
+
+/**
+ * "Atrapa al TAZ" logo in the style of the original KokiCat logo: the cat photo on top,
+ * small text above big pixel letters with a black border, and an arc (red tones instead of a rainbow).
+ */
+export function TazLogo({ className }: { className?: string }) {
+  const cell = 22;
+  const letters = ["T", "A", "Z"];
+  const x0 = 34, y0 = 300, gap = cell;
+  const pixels: { x: number; y: number; row: number }[] = [];
+  letters.forEach((ch, li) => {
+    GLYPHS[ch].forEach((line, row) => {
+      [...line].forEach((c, col) => {
+        if (c === "#") pixels.push({ x: x0 + li * (7 * cell + gap) + col * cell, y: y0 + row * cell, row });
+      });
+    });
+  });
+  const arcs = ["#7f1d1d", "#b91c1c", "#ef4444", "#f97316", "#fbbf24"];
+  const border = 9;
+  return (
+    <svg viewBox="0 0 663 600" className={className} role="img" aria-label="Atrapa al Taz">
+      <defs>
+        <linearGradient id="tazLetter" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ff6b6b" /><stop offset="0.5" stopColor="#e11d2e" /><stop offset="1" stopColor="#9f1220" />
+        </linearGradient>
+      </defs>
+      {/* arco (como el arcoíris del logo de Koki), en tonos rojos: franjas pegadas entre sí
+          que nacen justo debajo de la cabeza de Taz y abrazan las letras */}
+      {arcs.map((c, i) => (
+        <path key={c} d={`M ${560 - i * 20} 250 A ${300 - i * 20} ${300 - i * 20} 0 0 1 ${150} ${560 - i * 20}`} fill="none" stroke={c} strokeWidth="21" strokeLinecap="round" />
+      ))}
+      {/* cabeza de Taz arriba a la derecha, montada sobre las letras (como la de Koki en su logo) */}
+      <image href={tazHeadPng} x="370" y="40" width="270" height="270" preserveAspectRatio="xMidYMax meet" />
+      {/* texto chico */}
+      <text x="70" y="270" fontFamily="system-ui, sans-serif" fontWeight="800" fontSize="44" fill="#ffffff" stroke="#111" strokeWidth="9" paintOrder="stroke" strokeLinejoin="round">
+        Atrapa al
+      </text>
+      {/* letras TAZ: borde negro, relleno rojo con brillo pixelado */}
+      {pixels.map((p, i) => (
+        <rect key={`b${i}`} x={p.x - border} y={p.y - border} width={cell + border * 2} height={cell + border * 2} fill="#111" />
+      ))}
+      {pixels.map((p, i) => (
+        <rect key={`f${i}`} x={p.x} y={p.y} width={cell + 0.6} height={cell + 0.6} fill="url(#tazLetter)" />
+      ))}
+      {pixels.filter((p) => p.row < 2).map((p, i) => (
+        <rect key={`h${i}`} x={p.x + 3} y={p.y + 3} width={cell - 6} height={6} fill="#ffffff" opacity="0.45" />
+      ))}
+    </svg>
+  );
+}
+
 type Screen = "menu" | "playing" | "result";
 
 /** The whole mode: its menu (logo, Jugar, Ranking, Multijugador), the game and the results. */
 export function TazModeScreen({
-  onBack, onRanking, onMultiplayer,
-}: { onBack: () => void; onRanking: () => void; onMultiplayer: () => void }) {
+  onBack, onRanking, onMultiplayer, logoHandlers, style,
+}: {
+  onBack: () => void; onRanking: () => void; onMultiplayer: () => void;
+  /** finger-drag handlers for the logo (switches back to KokiCat) */
+  logoHandlers?: React.HTMLAttributes<HTMLDivElement>;
+  /** opacity/position while the modes cross-fade */
+  style?: React.CSSProperties;
+}) {
   const [screen, setScreen] = useState<Screen>("menu");
   const [seed, setSeed] = useState(1);
   const [last, setLast] = useState(0);
   const [best, setBest] = useState(0);
   const [record, setRecord] = useState(false);
-  const swipeX = useRef<number | null>(null);
 
   useEffect(() => { setBest(Number(localStorage.getItem("koki-best-taz") || 0)); }, []);
 
@@ -287,23 +350,12 @@ export function TazModeScreen({
 
   const big = "w-full rounded-full px-8 py-3 text-lg font-black text-white active:translate-y-1";
   return (
-    <div className="absolute inset-0 z-20 isolate overflow-y-auto bg-sky-300" onPointerDown={(e) => e.stopPropagation()}>
+    <div className="absolute inset-0 z-20 isolate overflow-y-auto bg-sky-300" style={style} onPointerDown={(e) => e.stopPropagation()}>
       <div className="fixed inset-0 -z-10"><GardenBackground /></div>
       <div className="flex min-h-full flex-col items-center justify-center gap-4 p-6 text-center short:flex-row short:gap-8">
-        {/* logo: deslizar hacia la izquierda vuelve a KokiCat */}
-        <div
-          className="flex cursor-grab touch-pan-y flex-col items-center"
-          onPointerDown={(e) => { swipeX.current = e.clientX; }}
-          onPointerUp={(e) => { if (swipeX.current != null && e.clientX - swipeX.current < -60) onBack(); swipeX.current = null; }}
-        >
-          <img src={tazPng} alt="Taz" draggable={false} className="w-40 drop-shadow-[0_8px_16px_rgba(0,0,0,0.45)] short:w-32" style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }} />
-          <div
-            className="-mt-2 text-5xl font-black leading-none tracking-tight text-red-600 short:text-4xl"
-            style={{ textShadow: "0 4px 0 #7f1d1d, 0 0 2px #fff, 0 8px 18px rgba(0,0,0,0.4)" }}
-          >
-            ATRAPA<br />AL TAZ
-          </div>
-          <div className="mt-2 text-[11px] font-bold text-white/80">← desliza para volver a KokiCat</div>
+        {/* logo: arrastrarlo hacia la izquierda (con el dedo puesto) vuelve a KokiCat */}
+        <div className="flex w-full max-w-[300px] cursor-grab touch-none select-none flex-col items-center short:max-w-[240px]" style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }} {...logoHandlers}>
+          <TazLogo className="w-full max-w-[300px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.45)] short:max-w-[240px]" />
         </div>
 
         <div className="flex w-full max-w-sm flex-col gap-3">
