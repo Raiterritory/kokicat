@@ -1,5 +1,5 @@
 // "Atrapa al Taz": whack-a-mole with 9 holes. Taz (normal skin) pops out of random holes;
-// tap him before he hides. 30 seconds, faster and faster; a golden Taz is worth 3.
+// tap him before he hides. 30 seconds, easy, only slightly faster each level; a golden Taz is worth 3.
 // The pop-up schedule comes from a seed, so in multiplayer everyone gets the same Taz at the same time.
 import { useEffect, useRef, useState } from "react";
 import tazPng from "@/assets/gato-negro.png";
@@ -24,8 +24,8 @@ export function tazSchedule(seed: number, round = 0): Pop[] {
   const rng = seededRandom(seed);
   const pops: Pop[] = [];
   const busyUntil = new Array(9).fill(0);
-  const speed = 1 + 0.15 * Math.min(round, 4);   // cada ronda online es más rápida
-  let t = 700;
+  const speed = 1 + 0.06 * Math.min(round, 4);   // cada ronda online, apenas más rápida
+  let t = 800;
   let last = -1;
   const freeHole = (avoid: number) => {
     let hole = Math.floor(rng() * 9);
@@ -35,15 +35,15 @@ export function tazSchedule(seed: number, round = 0): Pop[] {
   while (t < TAZ_DURATION - 400) {
     const level = tazLevel(t);
     const p = t / TAZ_DURATION;
-    // cada nivel se esconde más rápido y sale más seguido
-    const dur = (1150 - 520 * p - 70 * (level - 1)) / speed;
-    const interval = (900 - 470 * p - 50 * (level - 1)) / speed;
+    // fácil y tranquilo: cada nivel apenas un poco más rápido (al final sigue siendo cómodo)
+    const dur = (1500 - 250 * p - 40 * (level - 1)) / speed;
+    const interval = (1050 - 200 * p - 30 * (level - 1)) / speed;
     const hole = freeHole(last);
     pops.push({ t, hole, dur, golden: rng() < 0.07 });
     busyUntil[hole] = t + dur + 120;
     last = hole;
-    // desde el nivel 2 a veces salen dos Taz a la vez
-    if (level >= 2 && rng() < (level === 2 ? 0.2 : 0.35)) {
+    // solo en el último nivel, de vez en cuando, salen dos Taz a la vez
+    if (level >= 3 && rng() < 0.12) {
       const second = freeHole(hole);
       if (busyUntil[second] <= t) {
         pops.push({ t, hole: second, dur, golden: false });
