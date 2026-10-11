@@ -1,5 +1,6 @@
 // "Atrapa al Taz": whack-a-mole with 9 holes. Taz (normal skin) pops out of random holes;
-// tap him before he hides. 30 seconds, easy, only slightly faster each level; a golden Taz is worth 3.
+// tap him before he hides. No clock: 3 hearts, each Taz that escapes costs one; a golden Taz
+// is worth 3 and gives a heart back; tapping an empty hole costs a point. Slightly faster each level.
 // The pop-up schedule comes from a seed, so in multiplayer everyone gets the same Taz at the same time.
 import { useEffect, useRef, useState } from "react";
 import tazPng from "@/assets/gato-negro.png";
@@ -9,12 +10,17 @@ import { syncScores } from "./leaderboard";
 import { onTazGameEnd } from "./achievements";
 import { playMeow, playFlap } from "./sounds";
 
-export const TAZ_DURATION = 30000;
+/** Hearts per game: each Taz that gets away costs one; with none left the game ends. */
+export const TAZ_LIVES = 3;
+/** Every this many ms the level goes up (each level ~5% faster). */
+const LEVEL_MS = 20000;
+/** The schedule is generated this far ahead (way longer than anyone survives). */
+const SCHEDULE_MS = 20 * 60000;
 
 type Pop = { t: number; hole: number; dur: number; golden: boolean };
 
-/** Level inside a run: every 10 seconds it gets harder (1, 2, 3). */
-export const tazLevel = (elapsed: number) => (elapsed < 10000 ? 1 : elapsed < 20000 ? 2 : 3);
+/** Level inside a run: goes up every 20 seconds, with no end. */
+export const tazLevel = (elapsed: number) => 1 + Math.floor(elapsed / LEVEL_MS);
 
 /**
  * Same seed -> same list of pop-ups (depends only on time, never on taps).
@@ -32,18 +38,18 @@ export function tazSchedule(seed: number, round = 0): Pop[] {
     for (let tries = 0; tries < 9 && (hole === avoid || busyUntil[hole] > t); tries++) hole = (hole + 1 + Math.floor(rng() * 8)) % 9;
     return hole;
   };
-  while (t < TAZ_DURATION - 400) {
+  while (t < SCHEDULE_MS) {
     const level = tazLevel(t);
-    const p = t / TAZ_DURATION;
-    // fácil y tranquilo: cada nivel apenas un poco más rápido (al final sigue siendo cómodo)
-    const dur = (1500 - 250 * p - 40 * (level - 1)) / speed;
-    const interval = (1050 - 200 * p - 30 * (level - 1)) / speed;
+    // empieza tranquilo y cada nivel es ~5% más rápido: sin reloj, tarde o temprano se te escapan
+    const k = Math.pow(0.95, level - 1);
+    const dur = Math.max(520, 1500 * k) / speed;
+    const interval = Math.max(380, 1050 * k) / speed;
     const hole = freeHole(last);
     pops.push({ t, hole, dur, golden: rng() < 0.07 });
     busyUntil[hole] = t + dur + 120;
     last = hole;
-    // solo en el último nivel, de vez en cuando, salen dos Taz a la vez
-    if (level >= 3 && rng() < 0.12) {
+    // desde el nivel 3, de vez en cuando salen dos Taz a la vez (un poco más seguido cada nivel)
+    if (level >= 3 && rng() < Math.min(0.35, 0.05 * (level - 2))) {
       const second = freeHole(hole);
       if (busyUntil[second] <= t) {
         pops.push({ t, hole: second, dur, golden: false });
@@ -55,12 +61,30 @@ export function tazSchedule(seed: number, round = 0): Pop[] {
   return pops;
 }
 
-type Float = { id: number; hole: number; text: string; t: number };
+type Float = { id: number; hole: number; text: string; t: number; bad?: boolean };
 
 const FLOWER_COLORS = ["#ff5d8f", "#ffd23f", "#ffffff", "#c77dff", "#ff8c42"];
 
-/** Garden scene behind the mode: sky, sun, clouds, hills, a wooden fence, bushes, lawn and flowers. */
-function GardenBackground() {
+/**
+ * Draws `children` twice side by side and, if `dur` is set, slides them left forever
+ * (one 1000-unit tile per `dur` seconds), so the layer scrolls with no seam.
+ */
+function Scroll({ dur, children }: { dur?: number; children: React.ReactNode }) {
+  return (
+    <g style={dur ? { animation: `taz-garden-scroll ${dur}s linear infinite` } : undefined}>
+      {children}
+      <g transform="translate(1000 0)">{children}</g>
+    </g>
+  );
+}
+
+/**
+ * Garden scene behind the mode: sky, sun, clouds, hills, a wooden fence, bushes, lawn and flowers.
+ * With `moving`, the layers scroll sideways at different speeds (like Koki's city in the menu).
+ */
+function GardenBackground({ moving = false }: { moving?: boolean }) {
+  // lo de atrás se mueve lento y lo de adelante más rápido
+  const speed = (sec: number) => (moving ? sec : undefined);
   // flores fijas (posiciones "al azar" pero siempre iguales)
   const flowers = Array.from({ length: 34 }, (_, i) => {
     const r = (n: number) => ((Math.sin(i * 12.9898 + n * 78.233) * 43758.5453) % 1 + 1) % 1;
@@ -72,53 +96,61 @@ function GardenBackground() {
         <linearGradient id="gSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#6ec6ff" /><stop offset="1" stopColor="#c9f0ff" /></linearGradient>
         <linearGradient id="gLawn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#5fcf5a" /><stop offset="1" stopColor="#2f9a3a" /></linearGradient>
       </defs>
+      {/* en SVG, 1px de CSS = 1 unidad del dibujo: cada capa avanza una baldosa completa y vuelve a empezar */}
+      <style>{"@keyframes taz-garden-scroll { from { transform: translateX(0); } to { transform: translateX(-1000px); } }"}</style>
       <rect width="1000" height="1000" fill="url(#gSky)" />
-      {/* sol y nubes */}
+      {/* sol (quieto) y nubes */}
       <circle cx="840" cy="150" r="70" fill="#ffe66d" />
       <circle cx="840" cy="150" r="95" fill="#ffe66d" opacity="0.25" />
-      {[[180, 150, 1], [520, 95, 0.8], [680, 250, 0.65]].map(([x, y, k], i) => (
-        <g key={i} fill="#ffffff" opacity="0.92" transform={`translate(${x} ${y}) scale(${k})`}>
-          <ellipse cx="0" cy="0" rx="70" ry="34" /><ellipse cx="55" cy="-18" rx="50" ry="36" /><ellipse cx="-55" cy="-10" rx="44" ry="28" /><ellipse cx="100" cy="6" rx="42" ry="26" />
-        </g>
-      ))}
-      {/* colinas */}
-      <path d="M0 520 Q 180 420 360 500 T 720 480 T 1000 470 V 1000 H 0 Z" fill="#8fd97e" />
-      <path d="M0 560 Q 250 480 520 550 T 1000 530 V 1000 H 0 Z" fill="#74c96a" />
-      {/* reja de madera */}
-      <g>
+      <Scroll dur={speed(90)}>
+        {[[180, 150, 1], [520, 95, 0.8], [680, 250, 0.65]].map(([x, y, k], i) => (
+          <g key={i} fill="#ffffff" opacity="0.92" transform={`translate(${x} ${y}) scale(${k})`}>
+            <ellipse cx="0" cy="0" rx="70" ry="34" /><ellipse cx="55" cy="-18" rx="50" ry="36" /><ellipse cx="-55" cy="-10" rx="44" ry="28" /><ellipse cx="100" cy="6" rx="42" ry="26" />
+          </g>
+        ))}
+      </Scroll>
+      {/* colinas (empiezan y terminan a la misma altura para repetirse sin corte) */}
+      <Scroll dur={speed(120)}>
+        <path d="M0 500 Q 250 420 500 500 T 1000 500 V 1000 H 0 Z" fill="#8fd97e" />
+      </Scroll>
+      <Scroll dur={speed(70)}>
+        <path d="M0 550 Q 250 490 500 550 T 1000 550 V 1000 H 0 Z" fill="#74c96a" />
+      </Scroll>
+      {/* reja de madera y arbustos */}
+      <Scroll dur={speed(36)}>
         <rect x="0" y="575" width="1000" height="14" fill="#b07a45" />
         <rect x="0" y="615" width="1000" height="14" fill="#b07a45" />
-        {Array.from({ length: 21 }, (_, i) => (
+        {Array.from({ length: 20 }, (_, i) => (
           <path key={i} d={`M${i * 50 + 8} 650 V560 L${i * 50 + 25} 540 L${i * 50 + 42} 560 V650 Z`} fill="#d29a5c" stroke="#8a5a2b" strokeWidth="3" />
         ))}
-      </g>
-      {/* arbustos */}
-      {[[60, 650, 1.1], [300, 655, 0.9], [620, 650, 1], [900, 655, 1.2]].map(([x, y, k], i) => (
-        <g key={i} transform={`translate(${x} ${y}) scale(${k})`} fill="#2f8f3a">
-          <circle cx="-40" cy="0" r="38" /><circle cx="0" cy="-18" r="46" /><circle cx="42" cy="0" r="38" />
-          <circle cx="-10" cy="-30" r="8" fill="#ff5d8f" /><circle cx="25" cy="-12" r="7" fill="#ffd23f" />
-        </g>
-      ))}
-      {/* pasto */}
+        {[[60, 650, 1.1], [300, 655, 0.9], [620, 650, 1], [900, 655, 1.2]].map(([x, y, k], i) => (
+          <g key={i} transform={`translate(${x} ${y}) scale(${k})`} fill="#2f8f3a">
+            <circle cx="-40" cy="0" r="38" /><circle cx="0" cy="-18" r="46" /><circle cx="42" cy="0" r="38" />
+            <circle cx="-10" cy="-30" r="8" fill="#ff5d8f" /><circle cx="25" cy="-12" r="7" fill="#ffd23f" />
+          </g>
+        ))}
+      </Scroll>
+      {/* pasto y flores */}
       <rect x="0" y="660" width="1000" height="340" fill="url(#gLawn)" />
-      {Array.from({ length: 10 }, (_, i) => (
-        <rect key={i} x={i * 100} y="660" width="50" height="340" fill="#ffffff" opacity="0.05" />
-      ))}
-      {/* flores */}
-      {flowers.map((f, i) => (
-        <g key={i} transform={`translate(${f.x} ${f.y})`}>
-          <line x1="0" y1="0" x2="0" y2={f.s * 1.8} stroke="#2a7d33" strokeWidth="2.5" />
-          {[0, 72, 144, 216, 288].map((a) => (
-            <circle key={a} cx={Math.cos((a * Math.PI) / 180) * f.s * 0.7} cy={Math.sin((a * Math.PI) / 180) * f.s * 0.7} r={f.s * 0.55} fill={f.c} />
-          ))}
-          <circle r={f.s * 0.45} fill="#ffcf33" />
-        </g>
-      ))}
+      <Scroll dur={speed(24)}>
+        {Array.from({ length: 10 }, (_, i) => (
+          <rect key={i} x={i * 100} y="660" width="50" height="340" fill="#ffffff" opacity="0.05" />
+        ))}
+        {flowers.map((f, i) => (
+          <g key={i} transform={`translate(${f.x} ${f.y})`}>
+            <line x1="0" y1="0" x2="0" y2={f.s * 1.8} stroke="#2a7d33" strokeWidth="2.5" />
+            {[0, 72, 144, 216, 288].map((a) => (
+              <circle key={a} cx={Math.cos((a * Math.PI) / 180) * f.s * 0.7} cy={Math.sin((a * Math.PI) / 180) * f.s * 0.7} r={f.s * 0.55} fill={f.c} />
+            ))}
+            <circle r={f.s * 0.45} fill="#ffcf33" />
+          </g>
+        ))}
+      </Scroll>
     </svg>
   );
 }
 
-/** One 30-second round. Calls onEnd(score, hits) when time is up. */
+/** One game, with no clock: it lasts until the 3 hearts run out. Calls onEnd(score, hits). */
 export function TazGame({
   seed, round = 0, onEnd, onScore,
 }: { seed: number; round?: number; onEnd: (score: number, hits: number) => void; onScore?: (score: number) => void }) {
@@ -127,11 +159,19 @@ export function TazGame({
   const hitSet = useRef(new Set<number>());
   const scoreRef = useRef(0);
   const hitsRef = useRef(0);
+  const livesRef = useRef(TAZ_LIVES);
+  /** first pop that may still be on screen (the ones before it are already over) */
+  const firstLive = useRef(0);
   const ended = useRef(false);
   const [now, setNow] = useState(0);
   const [score, setScore] = useState(0);
+  const [lives, setLives] = useState(TAZ_LIVES);
+  const [hurt, setHurt] = useState(0);
   const [floats, setFloats] = useState<Float[]>([]);
   const [miss, setMiss] = useState<number | null>(null);
+
+  const addFloat = (hole: number, text: string, el: number, bad = false) =>
+    setFloats((f) => [...f, { id: Math.random(), hole, text, t: el, bad }]);
 
   useEffect(() => {
     pops.current = tazSchedule(seed, round);
@@ -139,45 +179,82 @@ export function TazGame({
     hitSet.current = new Set();
     scoreRef.current = 0;
     hitsRef.current = 0;
+    livesRef.current = TAZ_LIVES;
+    firstLive.current = 0;
     ended.current = false;
     setScore(0);
+    setLives(TAZ_LIVES);
     const id = setInterval(() => {
       const el = performance.now() - start.current;
       setNow(el);
       setFloats((f) => f.filter((x) => el - x.t < 700));
-      if (el >= TAZ_DURATION && !ended.current) {
+      // cada Taz que se esconde sin que lo atrapes cuesta un corazón
+      const ps = pops.current;
+      while (firstLive.current < ps.length && ps[firstLive.current].t + ps[firstLive.current].dur <= el) {
+        const k = firstLive.current++;
+        if (hitSet.current.has(k) || ended.current) continue;
+        livesRef.current -= 1;
+        setLives(livesRef.current);
+        setHurt(el);
+        addFloat(ps[k].hole, "💔", el, true);
+      }
+      if (livesRef.current <= 0 && !ended.current) {
         ended.current = true;
         clearInterval(id);
-        onEnd(scoreRef.current, hitsRef.current);
+        // un momento para ver el último corazón roto antes de los resultados
+        setTimeout(() => onEnd(scoreRef.current, hitsRef.current), 700);
       }
     }, 40);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed]);
 
+  /** index of the Taz showing in a hole at time `el`, or -1 */
+  const showing = (hole: number, el: number) => {
+    const ps = pops.current;
+    for (let k = firstLive.current; k < ps.length && ps[k].t <= el; k++) {
+      if (ps[k].hole === hole && !hitSet.current.has(k) && el < ps[k].t + ps[k].dur) return k;
+    }
+    return -1;
+  };
+
   const tap = (hole: number) => {
     if (ended.current) return;
     const el = performance.now() - start.current;
-    const i = pops.current.findIndex((p, k) => p.hole === hole && !hitSet.current.has(k) && el >= p.t && el < p.t + p.dur);
+    const i = showing(hole, el);
     if (i < 0) {
+      // tocar un hoyo vacío resta un punto (así no sirve tocar todo a lo loco)
       setMiss(hole);
       setTimeout(() => setMiss((m) => (m === hole ? null : m)), 180);
+      if (scoreRef.current > 0) {
+        scoreRef.current -= 1;
+        setScore(scoreRef.current);
+        onScore?.(scoreRef.current);
+        addFloat(hole, "-1", el, true);
+      }
       return;
     }
     hitSet.current.add(i);
-    const gain = pops.current[i].golden ? 3 : 1;
+    const golden = pops.current[i].golden;
+    const gain = golden ? 3 : 1;
     scoreRef.current += gain;
     hitsRef.current += 1;
     setScore(scoreRef.current);
     onScore?.(scoreRef.current);
-    setFloats((f) => [...f, { id: Math.random(), hole, text: `+${gain}`, t: el }]);
-    if (pops.current[i].golden) playMeow(); else playFlap();
+    // el Taz dorado además devuelve un corazón
+    if (golden && livesRef.current < TAZ_LIVES) {
+      livesRef.current += 1;
+      setLives(livesRef.current);
+      addFloat(hole, `+${gain} ❤️`, el);
+    } else {
+      addFloat(hole, `+${gain}`, el);
+    }
+    if (golden) playMeow(); else playFlap();
   };
 
-  const left = Math.max(0, TAZ_DURATION - now);
   const level = tazLevel(now);
-  // aviso de "¡Nivel 2!" / "¡Nivel 3!" durante el primer segundo y medio de cada nivel
-  const levelBanner = level > 1 && now - (level - 1) * 10000 < 1500;
+  // aviso de "¡Nivel N!" durante el primer segundo y medio de cada nivel
+  const levelBanner = level > 1 && now - (level - 1) * LEVEL_MS < 1500;
   const match = getMp().match;
   const rivals = match ? activePlayers(match).filter((p) => p.id !== match.me.id) : [];
 
@@ -187,16 +264,15 @@ export function TazGame({
       <div className="flex w-full max-w-md items-center justify-between">
         <div className="text-3xl font-black drop-shadow">🐈‍⬛ {score}</div>
         <div className="rounded-full bg-black/25 px-3 py-1 text-sm font-black">Nivel {level}{round > 0 ? ` · Ronda ${round + 1}` : ""}</div>
-        <div className="text-2xl font-black drop-shadow">⏱️ {Math.ceil(left / 1000)}</div>
+        <div className={`text-2xl drop-shadow ${now - hurt < 400 ? "animate-pulse scale-110" : ""}`} aria-label={`${lives} corazones`}>
+          {Array.from({ length: TAZ_LIVES }, (_, i) => (i < lives ? "❤️" : "🤍")).join("")}
+        </div>
       </div>
       {levelBanner && (
         <div className="pointer-events-none absolute left-1/2 top-1/3 z-30 -translate-x-1/2 animate-bounce rounded-2xl bg-red-600 px-6 py-3 text-3xl font-black shadow-2xl ring-4 ring-white/70">
           ¡Nivel {level}! ⚡
         </div>
       )}
-      <div className="mt-2 h-3 w-full max-w-md overflow-hidden rounded-full bg-black/25">
-        <div className="h-full rounded-full bg-amber-300 transition-[width] duration-100" style={{ width: `${(left / TAZ_DURATION) * 100}%` }} />
-      </div>
       {rivals.length > 0 && (
         <div className="mt-2 flex flex-wrap justify-center gap-2 text-xs font-black">
           {rivals.map((r) => (
@@ -207,7 +283,7 @@ export function TazGame({
 
       <div className="mt-auto mb-auto grid w-full max-w-md grid-cols-3 gap-x-4 gap-y-12 pt-10 sm:gap-x-6 [@media(orientation:landscape)_and_(max-height:540px)]:max-w-[16rem] [@media(orientation:landscape)_and_(max-height:540px)]:gap-y-6">
         {Array.from({ length: 9 }, (_, hole) => {
-          const k = pops.current.findIndex((p, i) => p.hole === hole && !hitSet.current.has(i) && now >= p.t && now < p.t + p.dur);
+          const k = showing(hole, now);
           const pop = k >= 0 ? pops.current[k] : null;
           // sube rápido, se queda, y baja al final
           let rise = 0;
@@ -241,7 +317,7 @@ export function TazGame({
               {/* borde delantero de tierra: tapa la parte de abajo de Taz */}
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[24%]" style={{ background: "radial-gradient(ellipse 50% 60% at 50% 0%, #8d5d36 0 62%, transparent 64%)" }} />
               {f.map((x) => (
-                <span key={x.id} className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 animate-bounce text-2xl font-black text-amber-200 drop-shadow">
+                <span key={x.id} className={`pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 animate-bounce whitespace-nowrap text-2xl font-black drop-shadow ${x.bad ? "text-red-500" : "text-amber-200"}`}>
                   {x.text}
                 </span>
               ))}
@@ -350,31 +426,47 @@ export function TazModeScreen({
 
   if (screen === "playing") return <TazGame seed={seed} onEnd={finish} />;
 
-  const big = "w-full rounded-full px-8 py-3 text-lg font-black text-white active:translate-y-1";
+  const btn = "w-full rounded-full px-8 py-3 text-lg font-black text-white active:translate-y-1";
   return (
     <div className="absolute inset-0 z-20 isolate overflow-y-auto bg-sky-300" style={style} onPointerDown={(e) => e.stopPropagation()}>
-      <div className="fixed inset-0 -z-10"><GardenBackground /></div>
-      <div className="flex min-h-full flex-col items-center justify-center gap-4 p-6 text-center short:flex-row short:gap-8" style={contentStyle}>
-        {/* logo: arrastrarlo hacia la izquierda (con el dedo puesto) vuelve a KokiCat */}
-        <div className="flex w-full max-w-[300px] cursor-grab touch-none select-none flex-col items-center short:max-w-[240px]" style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }} {...logoHandlers}>
-          <TazLogo className="w-full max-w-[300px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.45)] short:max-w-[240px]" />
-        </div>
-
-        <div className="flex w-full max-w-sm flex-col gap-3">
-          {screen === "result" && (
-            <div className="rounded-2xl bg-black/30 p-3 text-white">
-              <div className="text-xs font-bold uppercase tracking-widest text-white/70">{record ? "🎉 ¡Nuevo récord!" : "Fin del tiempo"}</div>
-              <div className="text-5xl font-black">{last}</div>
-              <div className="text-xs font-bold text-white/80">Récord: {best}</div>
+      <div className="fixed inset-0 -z-10"><GardenBackground moving /></div>
+      {/* mismas medidas que el menú de Koki: logo de 300px y botones max-w-sm con px-6 */}
+      <div className="flex min-h-full items-center justify-center p-4" style={contentStyle}>
+        <div className="flex w-full max-w-sm flex-col items-center gap-4 px-6 text-center short:max-w-3xl short:flex-row short:gap-8">
+          {/* logo: arrastrarlo hacia la izquierda (con el dedo puesto) vuelve a KokiCat */}
+          <div className="flex w-full flex-col items-center short:w-1/2">
+            <div className="w-full max-w-[300px] cursor-grab touch-none select-none short:max-w-[260px]" style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }} {...logoHandlers}>
+              <TazLogo className="w-full drop-shadow-[0_8px_16px_rgba(0,0,0,0.45)]" />
             </div>
-          )}
-          <button onClick={play} className={`${big} bg-gradient-to-b from-red-400 to-red-600 py-4 text-2xl shadow-[0_6px_0_rgb(127_29_29)]`}>
-            {screen === "result" ? "🔄 OTRA VEZ" : "▶ JUGAR"}
-          </button>
-          <button onClick={onRanking} className={`${big} bg-gradient-to-b from-amber-300 to-amber-500 shadow-[0_5px_0_rgb(146_64_14)]`}>🏆 RANKING</button>
-          <button onClick={onMultiplayer} className={`${big} bg-gradient-to-b from-violet-400 to-indigo-600 shadow-[0_5px_0_rgb(49_46_129)]`}>⚔️ MULTIJUGADOR</button>
-          <button onClick={onBack} className={`${big} bg-white/90 text-slate-800 shadow-[0_4px_0_rgba(0,0,0,0.3)]`}>← KokiCat</button>
-          {screen === "menu" && <div className="text-xs font-bold text-white/80">🐈‍⬛ Récord: {best}</div>}
+          </div>
+
+          <div className="flex w-full flex-col items-center gap-4 short:w-1/2 short:gap-3">
+            {screen === "result" && (
+              <div className="w-full rounded-2xl bg-black/30 p-3 text-white backdrop-blur">
+                <div className="text-xs font-bold uppercase tracking-widest text-white/70">{record ? "🎉 ¡Nuevo récord!" : "¡Se te escaparon!"}</div>
+                <div className="text-5xl font-black">{last}</div>
+                <div className="text-xs font-bold text-white/80">Récord: {best}</div>
+              </div>
+            )}
+            <button
+              onClick={play}
+              className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-10 py-4 text-2xl font-black tracking-wide text-white shadow-[0_6px_0_rgb(127_29_29),0_10px_20px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:translate-y-1"
+              style={{ textShadow: "0 2px 0 rgba(0,0,0,0.25), 0 0 2px rgba(0,0,0,0.35)" }}
+            >
+              {screen === "result" ? "🔄 OTRA VEZ" : "▶ JUGAR"}
+            </button>
+            <button onClick={onRanking} className={`${btn} bg-gradient-to-b from-amber-300 to-amber-500 shadow-[0_5px_0_rgb(146_64_14),0_8px_16px_rgba(0,0,0,0.4)]`}>🏆 RANKING</button>
+            <button onClick={onMultiplayer} className={`${btn} bg-gradient-to-b from-violet-400 to-indigo-600 shadow-[0_5px_0_rgb(49_46_129),0_8px_16px_rgba(0,0,0,0.4)]`}>⚔️ MULTIJUGADOR</button>
+            {/* volver a Koki: con los colores del arcoíris de su logo para que se note */}
+            <button
+              onClick={onBack}
+              className={`${btn} bg-gradient-to-r from-pink-500 via-amber-400 to-sky-500 ring-4 ring-white shadow-[0_5px_0_rgba(0,0,0,0.3),0_8px_16px_rgba(0,0,0,0.4)]`}
+              style={{ textShadow: "0 0 3px #111, 0 2px 0 #111" }}
+            >
+              🐱 VOLVER A KOKI
+            </button>
+            {screen === "menu" && <div className="text-xs font-semibold uppercase tracking-widest text-white drop-shadow">🐈‍⬛ Récord: {best}</div>}
+          </div>
         </div>
       </div>
     </div>
