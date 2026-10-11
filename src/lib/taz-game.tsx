@@ -457,12 +457,8 @@ export function TazModeScreen({
             </button>
             <button onClick={onRanking} className={`${btn} bg-gradient-to-b from-amber-300 to-amber-500 shadow-[0_5px_0_rgb(146_64_14),0_8px_16px_rgba(0,0,0,0.4)]`}>🏆 RANKING</button>
             <button onClick={onMultiplayer} className={`${btn} bg-gradient-to-b from-violet-400 to-indigo-600 shadow-[0_5px_0_rgb(49_46_129),0_8px_16px_rgba(0,0,0,0.4)]`}>⚔️ MULTIJUGADOR</button>
-            {/* volver a Koki: con los colores del arcoíris de su logo para que se note */}
-            <button
-              onClick={onBack}
-              className={`${btn} bg-gradient-to-r from-pink-500 via-amber-400 to-sky-500 ring-4 ring-white shadow-[0_5px_0_rgba(0,0,0,0.3),0_8px_16px_rgba(0,0,0,0.4)]`}
-              style={{ textShadow: "0 0 3px #111, 0 2px 0 #111" }}
-            >
+            {/* volver a Koki: mismo estilo que los demás botones, en el azul de Koki */}
+            <button onClick={onBack} className={`${btn} bg-gradient-to-b from-sky-400 to-blue-600 shadow-[0_5px_0_rgb(30_58_138),0_8px_16px_rgba(0,0,0,0.4)]`}>
               🐱 VOLVER A KOKI
             </button>
             {screen === "menu" && <div className="text-xs font-semibold uppercase tracking-widest text-white drop-shadow">🐈‍⬛ Récord: {best}</div>}
