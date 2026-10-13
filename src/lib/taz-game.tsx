@@ -295,6 +295,8 @@ export function TazGame({
           return (
             <button
               key={hole}
+              data-pad="down"
+              aria-label={`Hoyo ${hole + 1}`}
               onPointerDown={(e) => { e.stopPropagation(); tap(hole); }}
               className={`relative aspect-square ${miss === hole ? "translate-y-0.5" : ""}`}
               style={{ background: "radial-gradient(ellipse 50% 22% at 50% 76%, #24150c 0 70%, #6b4126 72% 86%, #8d5d36 88% 100%, transparent 101%)" }}

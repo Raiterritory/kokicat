@@ -39,6 +39,7 @@ import {
 } from "@/lib/achievements";
 import { TazModeScreen, TazGame } from "@/lib/taz-game";
 import { useModeSwipe } from "@/lib/mode-swipe";
+import { useGamepad } from "@/lib/gamepad";
 import {
   playFlap, playMeow, playLogoSound, playBossStart,
   startMusic, setMusicVolume, setSfxVolume,
@@ -391,6 +392,19 @@ function Game() {
       setRoundStarter(null);
     };
   }, [startGame]);
+
+  // control (PS4/Xbox): ✕ salta mientras se juega; en los menús mueve y aprieta botones; L1/R1 cambian de modo
+  useGamepad({
+    onAction: () => {
+      const s = stateRef.current;
+      if (s !== "ready" && s !== "playing") return false;
+      flap();
+      return true;
+    },
+    onShoulder: (side) => {
+      if (stateRef.current === "menu" && !tazMatch) modeSwipe.animateTo(side > 0 ? 1 : 0);
+    },
+  });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1512,6 +1526,8 @@ function Game() {
           50% { transform: translateY(-8px) rotate(1.5deg) scale(1.03); }
         }
         html, body, #root { height: 100%; margin: 0; overscroll-behavior: none; }
+        /* botón resaltado con el control */
+        .pad-focus { outline: 4px solid #fff !important; outline-offset: 3px; box-shadow: 0 0 0 8px rgba(255, 214, 10, 0.85), 0 0 24px 6px rgba(255, 214, 10, 0.6) !important; border-radius: 9999px; z-index: 1; }
       `}</style>
     </div>
   );
