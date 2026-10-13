@@ -1,7 +1,0 @@
-# todo esto lo genera build.ps1 o test/run.ts
-build/
-out/
-assets/
-assets-src/
-test/out/
-sce_sys/icon0.png
