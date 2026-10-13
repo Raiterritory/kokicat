@@ -78,6 +78,54 @@ export function parseSave(text: string): SaveFile | null {
   return { app: "kokicat", version: 1, exportedAt: String(save.exportedAt ?? ""), data };
 }
 
+/** Pastelitos que había en la nube la última vez que se juntó (cada aparato lleva el suyo). */
+const COINS_SYNCED = "koki-coins-synced";
+/** After adopting a profile from the cloud: from now on only this phone's changes are added. */
+export function markCoinsSynced() {
+  localStorage.setItem(COINS_SYNCED, localStorage.getItem("koki-coins") || "0");
+}
+
+/**
+ * Merges the online save (written by this phone or by another device, like the PS4) into this
+ * phone without losing anything: records keep the highest, characters and achievements are
+ * joined, each stat keeps the highest, and pastelitos add up what changed on each device since the
+ * last merge (what you earn on one and spend on the other both count). Returns true if something
+ * changed here.
+ */
+export function mergeCloud(cloud: Record<string, unknown>): boolean {
+  const str = (k: string) => (typeof cloud[k] === "string" ? (cloud[k] as string) : undefined);
+  const before = JSON.stringify(currentData());
+  const cloudCoins = str("koki-coins");
+  if (cloudCoins !== undefined) {
+    const local = Number(localStorage.getItem("koki-coins") || 0);
+    const c = Number(cloudCoins) || 0;
+    const synced = localStorage.getItem(COINS_SYNCED);
+    const merged = synced === null ? Math.max(c, local) : Math.max(0, c + (local - Number(synced)));
+    localStorage.setItem("koki-coins", String(merged));
+  }
+  markCoinsSynced();
+  for (const k of ["koki-best", "koki-best-hard", "koki-best-taz"] as const) {
+    const v = Math.max(Number(localStorage.getItem(k) || 0), Number(str(k) || 0));
+    if (v > 0) localStorage.setItem(k, String(v));
+  }
+  const unlocked = Array.from(new Set([
+    ...readJSON<string[]>(localStorage.getItem("koki-unlocked"), ["koki"]),
+    ...readJSON<string[]>(str("koki-unlocked"), []),
+  ]));
+  localStorage.setItem("koki-unlocked", JSON.stringify(unlocked));
+  const achievements = {
+    ...readJSON<Record<string, number>>(str("koki-achievements"), {}),
+    ...readJSON<Record<string, number>>(localStorage.getItem("koki-achievements"), {}),
+  };
+  localStorage.setItem("koki-achievements", JSON.stringify(achievements));
+  const stats = readJSON<Record<string, number>>(localStorage.getItem("koki-stats"), {});
+  for (const [k, v] of Object.entries(readJSON<Record<string, number>>(str("koki-stats"), {}))) {
+    if (typeof v === "number" && v > (stats[k] ?? 0)) stats[k] = v;
+  }
+  localStorage.setItem("koki-stats", JSON.stringify(stats));
+  return before !== JSON.stringify(currentData());
+}
+
 /**
  * Applies an imported save. Records keep the highest value and characters are merged,
  * so importing never makes you lose progress on this device.

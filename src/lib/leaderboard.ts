@@ -91,14 +91,49 @@ export async function getRecoveryCode(): Promise<{ code?: string; error?: string
   return { code: data };
 }
 
-/** Keeps a copy of the save (pastelitos, characters, records, skin) online, without the account key. */
+/**
+ * The online save as it is now (it may have progress from another device, like the PS4).
+ * null: the server has no profile copies (old server); "error": no connection right now.
+ */
+async function readCloudSave(p: Player): Promise<Record<string, unknown> | null | "error"> {
+  let code = localStorage.getItem(RECOVERY_KEY);
+  if (!code) {
+    const { data, error } = await rpc("get_recovery_code", { p_id: p.id, p_secret: p.secret });
+    if (error) return missingFn(error.message) ? null : "error";
+    if (typeof data !== "string") return "error";
+    code = data;
+    localStorage.setItem(RECOVERY_KEY, data);
+  }
+  const { data, error } = await rpc("recover_player", { p_nick: p.nickname, p_code: code });
+  if (error) return missingFn(error.message) ? null : "error";
+  const row = (data as ProfileRow[] | null)?.[0];
+  if (!row || row.id !== p.id) {
+    // código viejo (o cambió el apodo): se pide de nuevo la próxima vez
+    localStorage.removeItem(RECOVERY_KEY);
+    return "error";
+  }
+  return row.save_data && typeof row.save_data === "object" ? row.save_data : {};
+}
+
+/**
+ * Keeps a copy of the save (pastelitos, characters, records, skin) online, without the account key.
+ * First it merges what is already online (e.g. what you earned on the PS4), so nothing is lost.
+ */
 export async function backupProfile() {
   const p = getPlayer();
   if (!p) return;
-  const { currentData } = await import("./save-data");
+  const { currentData, mergeCloud, markCoinsSynced } = await import("./save-data");
+  // después de "Borrar datos guardados" la copia de la nube se reemplaza, no se junta
+  const reset = localStorage.getItem("koki-cloud-reset") === "1";
+  if (!reset) {
+    const cloud = await readCloudSave(p);
+    if (cloud === "error") return; // sin conexión: se junta y se sube la próxima vez
+    if (cloud && mergeCloud(cloud)) window.dispatchEvent(new Event("koki-cloud"));
+  }
   const data = currentData();
   delete data["koki-player"];
-  await rpc("save_profile", { p_id: p.id, p_secret: p.secret, p_data: data });
+  const { error } = await rpc("save_profile", { p_id: p.id, p_secret: p.secret, p_data: data });
+  if (reset && !error) { localStorage.removeItem("koki-cloud-reset"); markCoinsSynced(); }
 }
 
 /** Signs this phone into an existing profile with nickname + recovery code, and restores its save. */
@@ -128,6 +163,8 @@ async function adoptProfile(row: ProfileRow): Promise<{ player: Player; restored
     const strings: Record<string, string> = {};
     for (const [k, v] of Object.entries(row.save_data)) if (typeof v === "string" && k !== "koki-player") strings[k] = v;
     applySave({ app: "kokicat", version: 1, exportedAt: "", data: strings });
+    const { markCoinsSynced } = await import("./save-data");
+    markCoinsSynced();
     restored = true;
   }
   // Los récords del ranking nunca bajan al recuperar: se toma el mayor entre el servidor y este teléfono

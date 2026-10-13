@@ -232,6 +232,18 @@ function Game() {
     setBest(Number(localStorage.getItem(key) || 0));
   }, [mode]);
 
+  // lo que llegó de la nube (p. ej. lo ganado en la PS4): récords, pastelitos y personajes al día
+  useEffect(() => {
+    const refresh = () => {
+      setBest(Number(localStorage.getItem(modeRef.current === "hard" ? "koki-best-hard" : "koki-best") || 0));
+      setBestHard(Number(localStorage.getItem("koki-best-hard") || 0));
+      setCoins(Number(localStorage.getItem("koki-coins") || 0));
+      setUnlocked(loadUnlocked());
+    };
+    window.addEventListener("koki-cloud", refresh);
+    return () => window.removeEventListener("koki-cloud", refresh);
+  }, []);
+
   useEffect(() => {
     setBest(Number(localStorage.getItem("koki-best") || 0));
     setBestHard(Number(localStorage.getItem("koki-best-hard") || 0));
@@ -1077,6 +1089,9 @@ function Game() {
     ["koki-coins", "koki-unlocked", "koki-selected", "koki-best", "koki-best-hard", "koki-best-taz", "koki-achievements", "koki-stats"].forEach((k) =>
       localStorage.removeItem(k),
     );
+    // la copia en la nube se reemplaza (no se junta): si no, lo borrado volvería
+    localStorage.setItem("koki-cloud-reset", "1");
+    localStorage.removeItem("koki-coins-synced");
     setCoins(0); setUnlocked(["koki"]); setSelectedId("koki");
     setBest(0); setBestHard(0);
     setConfirmWipe(false);
