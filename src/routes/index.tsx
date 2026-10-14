@@ -26,7 +26,7 @@ import {
   newPowers, maybeSpawnPower, updatePowers, absorbCrash, timeScale, coinValue,
   drawPowerPickups, drawShield, drawPowerHud,
 } from "@/lib/powerups";
-import { sceneryStep, drawSky, drawRain } from "@/lib/scenery";
+import { sceneryStep, drawSky, drawRain, randomizeScenery } from "@/lib/scenery";
 import { dayKey, daySeed, todayTwist, playedToday, startDaily, finishDaily, dailyState, sendDaily, type Twist } from "@/lib/daily";
 import { missionEvent, onPlayedToday, loadStreak, claimableCount } from "@/lib/rewards";
 import { loadStyle, drawAccessories } from "@/lib/accessories";
@@ -392,6 +392,8 @@ function Game() {
   const startGame = useCallback((m?: Mode, seed?: number) => {
     kickMusic();
     if (m) { setMode(m); modeRef.current = m; }
+    // cada partida parte con un fondo distinto al azar (desde "¿Listo?" ya se eligió)
+    if (stateRef.current !== "ready") randomizeScenery();
     reset();
     rivalsRef.current = [];
     rngRef.current = seed == null ? Math.random : seededRandom(seed);
@@ -442,6 +444,7 @@ function Game() {
       if (getMp().match) return;
       // el reto de hoy es una sola partida: tocar no reinicia (se sale con los botones de la tarjeta)
       if (modeRef.current === "daily") return;
+      randomizeScenery();
       reset();
       setState("ready");
     }

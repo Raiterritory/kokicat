@@ -22,13 +22,22 @@ const mix = (a: string, b: string, t: number) => {
 /** Smooth position between scenes (eases toward the one that matches the score). */
 let scenePos = 0;
 let lastScore = -1;
-export function resetScenery() { scenePos = 0; lastScore = -1; }
+/** escenario con que parte cada partida (se elige al azar, distinto al anterior) */
+let sceneStart = Math.floor(Math.random() * SCENES.length);
+scenePos = sceneStart;
+export function resetScenery() { scenePos = sceneStart; lastScore = -1; }
+/** Elige otro fondo al azar para la próxima partida (nunca el mismo que el anterior). */
+export function randomizeScenery() {
+  sceneStart = (sceneStart + 1 + Math.floor(Math.random() * (SCENES.length - 1))) % SCENES.length;
+  scenePos = sceneStart;
+  lastScore = -1;
+}
 
 /** Which scene (with fraction) to draw now; call once per frame. */
 export function sceneryStep(score: number, force?: number): number {
   // el reto de hoy puede dejar un escenario fijo (noche o lluvia)
   if (force != null) { scenePos = force; lastScore = score; return force; }
-  const target = Math.floor(score / SCENE_EVERY);
+  const target = sceneStart + Math.floor(score / SCENE_EVERY);
   // al volver a empezar una partida, sin transición
   if (score < lastScore) scenePos = target;
   lastScore = score;
