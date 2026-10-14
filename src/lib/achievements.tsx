@@ -1,6 +1,7 @@
 // Achievements: from easiest to hardest. Unlocked ones and play stats are stored locally
 // ("koki-achievements" / "koki-stats") and travel with the save export and online backup.
 import { useEffect, useState } from "react";
+import { CHARACTERS } from "./characters";
 
 export type Stats = {
   games: number;          // partidas de Koki terminadas
@@ -17,11 +18,15 @@ export type Stats = {
   tazGames: number;
   tazHits: number;        // Taz atrapados en total
   tazBest: number;
+  streakBest: number;     // racha más larga de días seguidos jugando
+  missions: number;       // misiones semanales cumplidas
+  dailies: number;        // retos del día jugados
 };
 
 const EMPTY: Stats = {
   games: 0, bestNormal: 0, bestHard: 0, coins: 0, bosses: 0, goldens: 0, characters: 1, allCharacters: 99,
   friends: 0, onlineMatches: 0, onlineWins: 0, tazGames: 0, tazHits: 0, tazBest: 0,
+  streakBest: 0, missions: 0, dailies: 0,
 };
 
 export type Achievement = {
@@ -45,8 +50,11 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "hard-10", icon: "🌶️", name: "Picante", desc: "Haz 10 puntos en modo difícil", progress: goal((s) => s.bestHard, 10) },
   { id: "golden", icon: "✨", name: "Brillo dorado", desc: "Atrapa un Koki dorado", progress: goal((s) => s.goldens, 1) },
   { id: "friend", icon: "🤝", name: "Social", desc: "Ten tu primer amigo en el ranking", progress: goal((s) => s.friends, 1) },
+  { id: "daily-1", icon: "🗓️", name: "Puntual como la micro", desc: "Juega tu primer reto del día", progress: goal((s) => s.dailies, 1) },
+  { id: "streak-3", icon: "🔥", name: "Tamo activo", desc: "Juega 3 días seguidos", progress: goal((s) => s.streakBest, 3) },
   { id: "score-25", icon: "🐱", name: "Gato volador", desc: "Haz 25 puntos en una partida", progress: goal((s) => s.bestNormal, 25) },
   { id: "boss-1", icon: "⚔️", name: "Cazajefes", desc: "Derrota a tu primer jefe", progress: goal((s) => s.bosses, 1) },
+  { id: "missions-1", icon: "📜", name: "El mandado", desc: "Cumple tu primera misión semanal", progress: goal((s) => s.missions, 1) },
   { id: "online-1", icon: "🌐", name: "Retador", desc: "Juega una partida online", progress: goal((s) => s.onlineMatches, 1) },
   { id: "coins-100", icon: "🧁", name: "Golosa", desc: "Junta 100 pastelitos en total", progress: goal((s) => s.coins, 100) },
   { id: "taz-30", icon: "🐈‍⬛", name: "Cazador de Taz", desc: "Haz 30 puntos en Atrapa al Taz", progress: goal((s) => s.tazBest, 30) },
@@ -57,8 +65,11 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "hard-35", icon: "☄️", name: "Meteoro", desc: "Haz 35 puntos en modo difícil", progress: goal((s) => s.bestHard, 35) },
   { id: "score-50", icon: "🚀", name: "Imparable", desc: "Haz 50 puntos en una partida", progress: goal((s) => s.bestNormal, 50) },
   { id: "online-win", icon: "🏆", name: "Rimjober de corazón", desc: "Gana una partida online", progress: goal((s) => s.onlineWins, 1) },
+  { id: "streak-7", icon: "🕯️", name: "Siete vidas po", desc: "Juega 7 días seguidos", progress: goal((s) => s.streakBest, 7) },
+  { id: "missions-5", icon: "🧭", name: "Patiperra", desc: "Cumple 5 misiones semanales", progress: goal((s) => s.missions, 5) },
   { id: "games-100", icon: "🎮", name: "Veterano", desc: "Juega 100 partidas", progress: goal((s) => s.games, 100) },
   { id: "taz-60", icon: "⚡", name: "Reflejos felinos", desc: "Haz 60 puntos en Atrapa al Taz", progress: goal((s) => s.tazBest, 60) },
+  { id: "daily-10", icon: "📅", name: "Más fiel que quiltro", desc: "Juega 10 retos del día", progress: goal((s) => s.dailies, 10) },
   { id: "coins-1000", icon: "🎂", name: "Pastelera", desc: "Junta 1000 pastelitos en total", progress: goal((s) => s.coins, 1000) },
   { id: "boss-10", icon: "👑", name: "Exterminador", desc: "Derrota 10 jefes", progress: goal((s) => s.bosses, 10) },
   { id: "hard-50", icon: "🌋", name: "Infierno", desc: "Haz 50 puntos en modo difícil", progress: goal((s) => s.bestHard, 50) },
@@ -71,6 +82,29 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "score-200", icon: "👑", name: "Reina del cielo", desc: "Haz 200 puntos en una partida", progress: goal((s) => s.bestNormal, 200) },
   { id: "chars-all", icon: "💎", name: "Todos los gatos", desc: "Desbloquea todos los personajes", progress: (s) => [Math.min(s.characters, s.allCharacters), s.allCharacters] },
 ];
+
+/** The character an achievement gives (if any). */
+export const rewardOf = (achievementId: string) => CHARACTERS.find((c) => c.achievement === achievementId);
+
+/**
+ * Characters won with achievements go into the unlocked list. It is checked every time
+ * (not only when the achievement is new), so they come back after recovering a profile.
+ */
+export function grantAchievementCharacters() {
+  const done = getUnlocked();
+  let list: string[];
+  try { list = JSON.parse(localStorage.getItem("koki-unlocked") || '["koki"]'); } catch { list = ["koki"]; }
+  const add = CHARACTERS.filter((c) => c.achievement && done[c.achievement] && !list.includes(c.id)).map((c) => c.id);
+  if (!add.length) return;
+  try { localStorage.setItem("koki-unlocked", JSON.stringify([...list, ...add])); } catch { return; }
+  window.dispatchEvent(new Event("koki-cloud"));
+}
+
+/** A banner like the achievement one, for other news (racha, misión, reto del día…). */
+export function announce(icon: string, name: string, desc: string, kicker: string) {
+  window.dispatchEvent(new CustomEvent<Toast>(EVENT, { detail: { icon, name, desc, kicker } }));
+}
+type Toast = { icon: string; name: string; desc: string; kicker?: string; reward?: string };
 
 const STATS_KEY = "koki-stats";
 const DONE_KEY = "koki-achievements";
@@ -97,8 +131,12 @@ export function updateStats(change: (s: Stats) => void) {
   }
   if (fresh.length) {
     try { localStorage.setItem(DONE_KEY, JSON.stringify(done)); } catch { /* sin almacenamiento */ }
-    for (const a of fresh) window.dispatchEvent(new CustomEvent<Achievement>(EVENT, { detail: a }));
+    for (const a of fresh) {
+      const r = rewardOf(a.id);
+      window.dispatchEvent(new CustomEvent<Toast>(EVENT, { detail: { icon: a.icon, name: a.name, desc: a.desc, reward: r ? `🎁 Nuevo personaje: ${r.name}` : undefined } }));
+    }
   }
+  grantAchievementCharacters();
 }
 
 // ---- Eventos del juego ----
@@ -115,14 +153,17 @@ export const onCharacters = (unlocked: number, total: number) =>
   updateStats((s) => { s.characters = Math.max(s.characters, unlocked); s.allCharacters = total; });
 export const onFriends = (count: number) => updateStats((s) => { s.friends = Math.max(s.friends, count); });
 export const onOnlineMatch = (won: boolean) => updateStats((s) => { s.onlineMatches += 1; if (won) s.onlineWins += 1; });
+export const onStreak = (days: number) => updateStats((s) => { s.streakBest = Math.max(s.streakBest, days); });
+export const onMissionDone = () => updateStats((s) => { s.missions += 1; });
+export const onDailyPlayed = () => updateStats((s) => { s.dailies += 1; });
 export const onTazGameEnd = (score: number, hits: number) =>
   updateStats((s) => { s.tazGames += 1; s.tazHits += hits; s.tazBest = Math.max(s.tazBest, score); });
 
 /** "¡Logro desbloqueado!" banner, a few seconds per achievement. */
 export function AchievementToast() {
-  const [queue, setQueue] = useState<Achievement[]>([]);
+  const [queue, setQueue] = useState<Toast[]>([]);
   useEffect(() => {
-    const on = (e: Event) => setQueue((q) => [...q, (e as CustomEvent<Achievement>).detail]);
+    const on = (e: Event) => setQueue((q) => [...q, (e as CustomEvent<Toast>).detail]);
     window.addEventListener(EVENT, on);
     return () => window.removeEventListener(EVENT, on);
   }, []);
@@ -135,12 +176,13 @@ export function AchievementToast() {
   if (!a) return null;
   return (
     <div className="pointer-events-none absolute left-1/2 top-16 z-[80] w-[min(92vw,360px)] -translate-x-1/2 animate-bounce rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-3 text-white shadow-2xl ring-2 ring-white/70">
-      <div className="text-[10px] font-black uppercase tracking-widest text-white/85">🏅 ¡Logro desbloqueado!</div>
+      <div className="text-[10px] font-black uppercase tracking-widest text-white/85">{a.kicker ?? "🏅 ¡Logro desbloqueado!"}</div>
       <div className="flex items-center gap-2">
         <span className="text-3xl">{a.icon}</span>
         <div>
           <div className="text-lg font-black leading-tight">{a.name}</div>
           <div className="text-xs font-semibold text-white/90">{a.desc}</div>
+          {a.reward && <div className="text-xs font-black text-white">{a.reward}</div>}
         </div>
       </div>
     </div>
@@ -173,6 +215,7 @@ export function AchievementsModal({ onClose }: { onClose: () => void }) {
                 <div className="min-w-0 flex-1">
                   <div className={`text-sm font-black ${got ? "text-amber-200" : "text-white/80"}`}>{a.name}</div>
                   <div className="text-[11px] text-white/60">{a.desc}</div>
+                  {rewardOf(a.id) && <div className="text-[11px] font-black text-pink-300">🎁 Premio: {rewardOf(a.id)!.name}</div>}
                   {!got && target > 1 && (
                     <div className="mt-1 flex items-center gap-2">
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">

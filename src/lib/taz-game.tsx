@@ -8,6 +8,7 @@ import tazHeadPng from "@/assets/taz-head.png";
 import { seededRandom, getMp, ghosts, activePlayers } from "./multiplayer";
 import { syncScores } from "./leaderboard";
 import { onTazGameEnd } from "./achievements";
+import { missionEvent, onPlayedToday } from "./rewards";
 import { playMeow, playFlap } from "./sounds";
 
 /** Hearts per game: each Taz that gets away costs one; with none left the game ends. */
@@ -159,6 +160,7 @@ export function TazGame({
   const hitSet = useRef(new Set<number>());
   const scoreRef = useRef(0);
   const hitsRef = useRef(0);
+  const goldHitsRef = useRef(0);
   const livesRef = useRef(TAZ_LIVES);
   /** first pop that may still be on screen (the ones before it are already over) */
   const firstLive = useRef(0);
@@ -179,6 +181,7 @@ export function TazGame({
     hitSet.current = new Set();
     scoreRef.current = 0;
     hitsRef.current = 0;
+    goldHitsRef.current = 0;
     livesRef.current = TAZ_LIVES;
     firstLive.current = 0;
     ended.current = false;
@@ -202,6 +205,11 @@ export function TazGame({
         ended.current = true;
         clearInterval(id);
         // un momento para ver el último corazón roto antes de los resultados
+        // misiones de la semana y racha (en solitario y en vivo)
+        missionEvent("tazHits", hitsRef.current);
+        missionEvent("tazGoldens", goldHitsRef.current);
+        missionEvent("games");
+        onPlayedToday();
         setTimeout(() => onEnd(scoreRef.current, hitsRef.current), 700);
       }
     }, 40);
@@ -239,6 +247,7 @@ export function TazGame({
     const gain = golden ? 3 : 1;
     scoreRef.current += gain;
     hitsRef.current += 1;
+    if (golden) goldHitsRef.current += 1;
     setScore(scoreRef.current);
     onScore?.(scoreRef.current);
     // el Taz dorado además devuelve un corazón

@@ -14,6 +14,8 @@ export type Character = {
   base: string;
   filter?: string;
   fx?: SkinFx;
+  /** no se compra: se gana al conseguir este logro (id de ACHIEVEMENTS) */
+  achievement?: string;
 };
 
 export const CHARACTERS: Character[] = [
@@ -44,6 +46,13 @@ export const CHARACTERS: Character[] = [
   { id: "raton-blanco", name: "Ratón Blanco", url: ratonAsset.url, price: 350, base: "raton", filter: "saturate(0.2) brightness(1.7)" },
   { id: "raton-cyber", name: "Ratón Cyber", url: ratonAsset.url, price: 900, base: "raton", filter: "hue-rotate(200deg) saturate(3.5) brightness(1.25)" },
   { id: "raton-arcoiris", name: "Ratón Arcoíris", url: ratonAsset.url, price: 1000, base: "raton", fx: "rainbow" },
+  // se ganan con logros, no con pastelitos
+  { id: "koki-pulento", name: "Koki Pulento", url: kokiAsset.url, price: 0, base: "koki", fx: "acero", achievement: "boss-10" },
+  { id: "koki-volao", name: "Koki Volao", url: kokiAsset.url, price: 0, base: "koki", fx: "cosmos", achievement: "score-100" },
+  { id: "taz-al-toque", name: "Taz Al Toque", url: gatoNegroPng, price: 0, base: "taz", fx: "electrico", achievement: "taz-60" },
+  { id: "gufi-trasnochao", name: "Gufi Trasnochao", url: gufiAsset.url, price: 0, base: "gufi", fx: "lunar", achievement: "streak-7" },
+  { id: "raton-patiperro", name: "Ratón Patiperro", url: ratonAsset.url, price: 0, base: "raton", fx: "arena", achievement: "missions-5" },
+  { id: "bola-cuatica", name: "Bola Cuática", url: bolaNievePng, price: 0, base: "bola-nieve", fx: "aurora", achievement: "daily-10" },
 ];
 
 export const CHAR_BY_ID: Record<string, Character> = Object.fromEntries(

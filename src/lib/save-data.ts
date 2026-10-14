@@ -5,6 +5,8 @@ const SAVE_KEYS = [
   "koki-coins", "koki-unlocked", "koki-selected", "koki-best", "koki-best-hard",
   "koki-vol-music", "koki-vol-sfx", "koki-player",
   "koki-best-taz", "koki-achievements", "koki-stats",
+  // 2.9: estilo (gorros, lentes, estelas), misiones, racha y reto de hoy
+  "koki-best-time", "koki-style", "koki-weekly", "koki-streak", "koki-daily",
 ] as const;
 
 export type SaveFile = { app: "kokicat"; version: 1; exportedAt: string; data: Record<string, string> };
@@ -78,6 +80,15 @@ export function parseSave(text: string): SaveFile | null {
   return { app: "kokicat", version: 1, exportedAt: String(save.exportedAt ?? ""), data };
 }
 
+/** Gorros, lentes y estelas comprados: se juntan los de ambos lados; lo puesto es lo de este teléfono. */
+function mergeStyle(local: string | null | undefined, other: string | null | undefined): string | null {
+  if (!other) return null;
+  const a = readJSON<{ owned?: string[] }>(local, {});
+  const b = readJSON<{ owned?: string[] }>(other, {});
+  const base = local ? a : b;
+  return JSON.stringify({ ...base, owned: Array.from(new Set([...(a.owned ?? []), ...(b.owned ?? [])])) });
+}
+
 /** Pastelitos que había en la nube la última vez que se juntó (cada aparato lleva el suyo). */
 const COINS_SYNCED = "koki-coins-synced";
 /** After adopting a profile from the cloud: from now on only this phone's changes are added. */
@@ -123,6 +134,8 @@ export function mergeCloud(cloud: Record<string, unknown>): boolean {
     if (typeof v === "number" && v > (stats[k] ?? 0)) stats[k] = v;
   }
   localStorage.setItem("koki-stats", JSON.stringify(stats));
+  const style = mergeStyle(localStorage.getItem("koki-style"), str("koki-style"));
+  if (style) localStorage.setItem("koki-style", style);
   return before !== JSON.stringify(currentData());
 }
 
@@ -150,6 +163,8 @@ export function applySave(save: SaveFile) {
     ...readJSON<string[]>(imp["koki-unlocked"], ["koki"]),
   ]));
   next["koki-unlocked"] = JSON.stringify(unlocked);
+  const style = mergeStyle(cur["koki-style"], imp["koki-style"]);
+  if (style) next["koki-style"] = style;
   if (next["koki-selected"] && !unlocked.includes(next["koki-selected"])) next["koki-selected"] = "koki";
   for (const [k, v] of Object.entries(next)) localStorage.setItem(k, v);
 }

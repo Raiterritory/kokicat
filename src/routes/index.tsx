@@ -27,6 +27,11 @@ import {
   drawPowerPickups, drawShield, drawPowerHud,
 } from "@/lib/powerups";
 import { sceneryStep, drawSky, drawRain } from "@/lib/scenery";
+import { dayKey, daySeed, todayTwist, playedToday, startDaily, finishDaily, dailyState, sendDaily, type Twist } from "@/lib/daily";
+import { missionEvent, onPlayedToday, loadStreak, claimableCount } from "@/lib/rewards";
+import { loadStyle, drawAccessories } from "@/lib/accessories";
+import { drawTrail, type TrailPoint } from "@/lib/trails";
+import { MissionsModal, DailyBoard, DailyBoardModal, StyleShop, OutfitPreview } from "@/lib/progress-ui";
 import { drawSkinCharacter, SkinPreview } from "@/lib/character-skins";
 import { CHARACTERS, CHAR_BY_ID } from "@/lib/characters";
 import { syncScores, syncScoresExact, syncSkin, backupProfile, loadRivals, type BoardRow, type BoardMode } from "@/lib/leaderboard";
@@ -41,6 +46,7 @@ import { UpdatePrompt, InstalledVersion, CheckUpdateButton } from "@/lib/updater
 import { AdminPanel } from "@/lib/admin";
 import {
   AchievementToast, AchievementsModal, onFlappyGameEnd, onBossBeaten, onGoldenCaught, onTazGameEnd, onCharacters,
+  onDailyPlayed, grantAchievementCharacters, ACHIEVEMENTS,
 } from "@/lib/achievements";
 import { TazModeScreen, TazGame } from "@/lib/taz-game";
 import { useModeSwipe } from "@/lib/mode-swipe";
@@ -124,7 +130,8 @@ type Particle = {
 };
 type GameState = "menu" | "characters" | "ready" | "playing" | "over";
 /** "time": contrarreloj, cuántos tubos pasas en 60 segundos (solo en este teléfono, sin ranking online) */
-type Mode = "normal" | "hard" | "time";
+/** "daily": el reto de hoy, una partida al día con la misma semilla para todos */
+type Mode = "normal" | "hard" | "time" | "daily";
 const TIME_FRAMES = 60 * 60;
 /** chocar en contrarreloj no termina la partida: resta 5 segundos */
 const TIME_PENALTY = 5 * 60;
@@ -173,6 +180,28 @@ function Game() {
   const modeSwipe = useModeSwipe(tazP, setTazP);
   const [tazMatch, setTazMatch] = useState<{ seed: number; round: number } | null>(null);
   const [showAchievements, setShowAchievements] = useState(false);
+  // 2.9: misiones, ranking de hoy y pestañas de Personajes (personajes / gorros / lentes / estelas)
+  const [showMissions, setShowMissions] = useState(false);
+  const [showDailyBoard, setShowDailyBoard] = useState(false);
+  const [charTab, setCharTab] = useState<"chars" | "hat" | "glasses" | "trail">("chars");
+  const [streakDays, setStreakDays] = useState(0);
+  const [claimable, setClaimable] = useState(0);
+  const [dailyDone, setDailyDone] = useState(false);
+  const styleRef = useRef(loadStyle());
+  useEffect(() => {
+    const refreshProgress = () => {
+      setStreakDays(loadStreak().count);
+      setClaimable(claimableCount());
+      setDailyDone(playedToday());
+      styleRef.current = loadStyle();
+    };
+    refreshProgress();
+    grantAchievementCharacters();
+    void sendDaily();
+    const evs = ["koki-weekly", "koki-cloud", "koki-style", "focus"];
+    evs.forEach((ev) => window.addEventListener(ev, refreshProgress));
+    return () => evs.forEach((ev) => window.removeEventListener(ev, refreshProgress));
+  }, []);
   const tazReport = useRef(0);
   useEffect(() => {
     void syncScores();
@@ -225,7 +254,7 @@ function Game() {
     frame: 0, score: 0, rot: 0, flap: 0,
     runCoins: 0,
     particles: [] as Particle[],
-    trail: [] as { x: number; y: number }[],
+    trail: [] as TrailPoint[],
     goldens: [] as Golden[],
     magnet: 0,
     sinceGolden: 0,
@@ -237,6 +266,9 @@ function Game() {
     bossSkin: 0,
     powers: newPowers(),
     timeLeft: 0,
+    /** reto de hoy: su condimento y el azar de los power-ups (igual para todos) */
+    twist: null as Twist | null,
+    powerRng: Math.random as () => number,
   });
 
   useEffect(() => {
@@ -312,7 +344,7 @@ function Game() {
       particles: [], trail: [], goldens: [], magnet: 0, sinceGolden: 0,
       speed: PIPE_SPEED, scroll: 0, spawnDist: firstPipeDist(),
       boss: null, nextBoss: BOSS_EVERY, bossSkin: 0,
-      powers: newPowers(), timeLeft: 0,
+      powers: newPowers(), timeLeft: 0, twist: null, powerRng: Math.random,
     };
     setScore(0);
   };
@@ -369,10 +401,23 @@ function Game() {
     // En multijugador todos enfrentan los mismos jefes, en el mismo orden
     bossRngRef.current = seed == null ? Math.random : seededRandom(seed ^ 0x5bd1e995);
     const runMode = modeRef.current;
-    if (seed == null && runMode !== "time") {
+    if (seed == null && runMode !== "time" && runMode !== "daily") {
       void loadRivals(runMode).then((r) => { if (modeRef.current === runMode) rivalsRef.current = r; });
     }
     if (runMode === "time") gameRef.current.timeLeft = TIME_FRAMES;
+    if (runMode === "daily" && seed == null) {
+      // el reto de hoy: misma semilla para todos (tubos, dorados, jefes y power-ups) y una sola partida
+      const ds = daySeed();
+      rngRef.current = seededRandom(ds);
+      bossRngRef.current = seededRandom(ds ^ 0x5bd1e995);
+      const g0 = gameRef.current;
+      g0.powerRng = seededRandom(ds ^ 0x27d4eb2f);
+      g0.twist = todayTwist();
+      if (g0.twist.shield) g0.powers.shield = true;
+      if (g0.twist.bossEvery) g0.nextBoss = g0.twist.bossEvery;
+      startDaily();
+      setDailyDone(true);
+    }
     gameRef.current.speed = modeRef.current === "hard" ? HARD_START : PIPE_SPEED;
     setState("playing");
     gameRef.current.vy = JUMP;
@@ -395,6 +440,8 @@ function Game() {
       playFlap();
     } else if (s === "over") {
       if (getMp().match) return;
+      // el reto de hoy es una sola partida: tocar no reinicia (se sale con los botones de la tarjeta)
+      if (modeRef.current === "daily") return;
       reset();
       setState("ready");
     }
@@ -486,9 +533,15 @@ function Game() {
       ctx.beginPath();
       ctx.rect(0, 0, WIDTH, HEIGHT);
       ctx.clip();
+      const twist = g.twist;
+      // reto de hoy "Temblor grado 7": la pantalla se sacude de a ratos
+      if (twist?.shake && stateRef.current === "playing") {
+        const k = Math.max(0, Math.sin(g.frame * 0.013)) ** 6;
+        if (k > 0.05) ctx.translate(Math.sin(g.frame * 1.7) * 7 * k, Math.cos(g.frame * 2.3) * 5 * k);
+      }
 
       // el cielo cambia con el puntaje: atardecer, noche con estrellas, lluvia… (ver scenery.ts)
-      const scene = sceneryStep(stateRef.current === "playing" || stateRef.current === "over" ? g.score : 0);
+      const scene = sceneryStep(stateRef.current === "playing" || stateRef.current === "over" ? g.score : 0, twist?.scene);
       const palette = drawSky(ctx, WIDTH, HEIGHT, scene, g.frame);
       drawSimpleSkyline(ctx, WIDTH, HEIGHT - GROUND_H, {
         offset: g.frame * 0.3, baseY: HEIGHT - GROUND_H - 90,
@@ -508,7 +561,7 @@ function Game() {
         // velocidad: constante en normal, creciente en dificil
         g.speed = modeRef.current === "hard"
           ? Math.min(HARD_MAX_SPEED, HARD_START + g.score * HARD_SPEED_PER_POINT)
-          : PIPE_SPEED;
+          : PIPE_SPEED * (twist?.speed ?? 1);
 
         // cámara lenta (power-up): todo el mundo va más despacio, también la caída de Koki
         const ts = timeScale(g.powers);
@@ -520,7 +573,7 @@ function Game() {
         }
 
         // fisica flappy: gravedad constante + impulso fijo
-        g.vy += GRAVITY * ts;
+        g.vy += GRAVITY * ts * (twist?.gravity ?? 1);
         if (g.vy > MAX_FALL) g.vy = MAX_FALL;
         g.y += g.vy * ts;
         // rotacion tipo flappy: apunta hacia donde va
@@ -563,7 +616,7 @@ function Game() {
           }
           // power-ups (escudo, cámara lenta, pastelitos x2): solo jugando solo, con su propio azar
           // (así las tuberías de las partidas en vivo siguen iguales que en el teléfono de los demás y la PS4)
-          maybeSpawnPower(g.powers, spawnX + PIPE_W + 70, top + GAP / 2, GAP, inMatch || g.goldens.length > goldensBefore);
+          maybeSpawnPower(g.powers, spawnX + PIPE_W + 70, top + GAP / 2, GAP, inMatch || g.goldens.length > goldensBefore, g.powerRng);
         }
         g.pipes.forEach((p) => (p.x -= move));
         g.pipes = g.pipes.filter((p) => p.x + PIPE_W > 0);
@@ -581,7 +634,10 @@ function Game() {
          */
         const crash = (ground: boolean) => {
           if (stateRef.current !== "playing") return;
-          const saved = absorbCrash(g.powers) || (modeRef.current === "time" && !inMatch && (() => {
+          const hadShield = g.powers.shield && g.powers.invuln <= 0;
+          const absorbed = absorbCrash(g.powers);
+          if (absorbed && hadShield) missionEvent("shieldSaves");
+          const saved = absorbed || (modeRef.current === "time" && !inMatch && (() => {
             g.timeLeft = Math.max(0, g.timeLeft - TIME_PENALTY);
             g.powers.invuln = 70;
             return g.timeLeft > 0;
@@ -615,6 +671,7 @@ function Game() {
             gd.taken = true;
             g.magnet = MAGNET_FRAMES;
             onGoldenCaught();
+            missionEvent("goldens");
             spawnStars(gd.x, gd.y);
             spawnStars(gd.x, gd.y);
             playMeow();
@@ -638,7 +695,7 @@ function Game() {
           }
           if (dx * dx + dy * dy < (r + COIN_SIZE / 2) * (r + COIN_SIZE / 2)) {
             c.taken = true;
-            g.runCoins += coinValue(g.powers);
+            g.runCoins += coinValue(g.powers) * (twist?.coins ?? 1);
             spawnCoinBurst(c.x, c.y);
             playFlap();
           }
@@ -646,16 +703,17 @@ function Game() {
 
         // power-ups que flotan entre las tuberías
         const gotPower = updatePowers(g.powers, move, kx, ky, r);
-        if (gotPower) { spawnStars(kx, ky); playMeow(); }
+        if (gotPower) { spawnStars(kx, ky); playMeow(); missionEvent("powerups"); }
 
         // --- JEFE: aparece cada BOSS_EVERY puntos (no en contrarreloj) ---
         if (!g.boss && g.score > 0 && g.score >= g.nextBoss && modeRef.current !== "time") {
           const skin = Math.floor(bossRngRef.current() * BOSS_IMAGES.length);
           // cada jefe ataca distinto: rayo, tubos o muro (en vivo, siempre el rayo, igual que en la PS4)
-          const kind = inMatch ? "rayo" : BOSS_KINDS[Math.floor(Math.random() * BOSS_KINDS.length)];
+          const pick = modeRef.current === "daily" ? bossRngRef.current() : Math.random();
+          const kind = inMatch ? "rayo" : BOSS_KINDS[Math.floor(pick * BOSS_KINDS.length)];
           g.boss = createBoss(WIDTH, HEIGHT, kind);
           g.bossSkin = skin;
-          g.nextBoss = g.score + BOSS_EVERY;
+          g.nextBoss = g.score + (twist?.bossEvery ?? BOSS_EVERY);
           playBossStart();
         }
         const b = g.boss;
@@ -673,6 +731,8 @@ function Game() {
             g.boss = null;
             g.score += 5;
             onBossBeaten();
+            missionEvent("bosses");
+            missionEvent("bossKinds", 1, b.kind);
             g.runCoins += 10;
             setScore(g.score);
             spawnStars(kx, ky); spawnStars(kx, ky);
@@ -685,79 +745,12 @@ function Game() {
         g.rot = Math.sin(g.frame * 0.08) * 0.1;
       }
 
-      // --- Nyan-style rainbow trail following the character ---
-      g.trail.forEach((t) => (t.x -= g.speed));
-      g.trail.push({ x: kokiX, y: g.y });
+      // --- la estela elegida (arcoíris, fuego de asado, banderitas…) siguiendo al personaje ---
+      const trailMove = stateRef.current === "playing" ? g.speed * timeScale(g.powers) : g.speed;
+      g.trail.forEach((t) => (t.x -= trailMove));
+      g.trail.push({ x: kokiX, y: g.y, f: g.frame });
       g.trail = g.trail.filter((t) => t.x > -30);
-      if (g.trail.length > 3) {
-        // Cinta arcoíris suave: curvas en vez de zigzag, se afina y se desvanece hacia la cola,
-        // con un brillo detrás y destellos. Un solo trazo por color (liviano para el teléfono).
-        const bands = ["#ff3b3b", "#ff9a2d", "#ffe62d", "#3ddc4a", "#2d9bff", "#a44bff"];
-        const bandH = 6;
-        const total = bands.length * bandH;
-        const pts = g.trail;
-        const n = pts.length;
-        // suavizado: promedio de vecinos para quitar los saltos del aleteo
-        const sm = pts.map((p, i) => ({
-          x: p.x,
-          y: (pts[Math.max(0, i - 2)].y + pts[Math.max(0, i - 1)].y + p.y + pts[Math.min(n - 1, i + 1)].y) / 4,
-        }));
-        const tailX = sm[0].x, headX = sm[n - 1].x;
-        // ancho relativo: fino en la cola, completo junto a Koki
-        const widthAt = (i: number) => 0.3 + 0.7 * (i / (n - 1));
-        const smoothPath = (offset: number) => {
-          ctx.beginPath();
-          ctx.moveTo(sm[0].x, sm[0].y + offset * widthAt(0));
-          for (let i = 1; i < n - 1; i++) {
-            const mx = (sm[i].x + sm[i + 1].x) / 2;
-            const my = (sm[i].y * widthAt(i) + sm[i + 1].y * widthAt(i + 1)) / (widthAt(i) + widthAt(i + 1));
-            const mo = offset * (widthAt(i) + widthAt(i + 1)) / 2;
-            ctx.quadraticCurveTo(sm[i].x, sm[i].y + offset * widthAt(i), mx, my + mo);
-          }
-          ctx.lineTo(sm[n - 1].x, sm[n - 1].y + offset);
-        };
-        const fade = (color: string, maxAlpha: number) => {
-          const gr = ctx.createLinearGradient(tailX, 0, headX, 0);
-          gr.addColorStop(0, `${color}00`);
-          gr.addColorStop(0.35, `${color}${Math.round(maxAlpha * 0.55 * 255).toString(16).padStart(2, "0")}`);
-          gr.addColorStop(1, `${color}${Math.round(maxAlpha * 255).toString(16).padStart(2, "0")}`);
-          return gr;
-        };
-        ctx.save();
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        // brillo suave detrás de la cinta
-        ctx.lineWidth = total + 10;
-        ctx.strokeStyle = fade("#ffffff", 0.22);
-        smoothPath(0);
-        ctx.stroke();
-        // las seis franjas
-        ctx.lineWidth = bandH + 0.8;
-        bands.forEach((color, bi) => {
-          ctx.strokeStyle = fade(color, 0.95);
-          smoothPath(-total / 2 + bandH / 2 + bi * bandH);
-          ctx.stroke();
-        });
-        // destellos que titilan a lo largo de la cinta
-        for (let k = 0; k < 6; k++) {
-          const i = Math.floor(((g.frame * 0.7 + k * 37) % (n - 2))) + 1;
-          const t = i / (n - 1);
-          const tw = 0.5 + 0.5 * Math.sin(g.frame * 0.3 + k * 1.7);
-          const s = (2 + 3 * tw) * (0.5 + 0.5 * t);
-          const x = sm[i].x, y = sm[i].y + Math.sin(k * 2.3 + g.frame * 0.05) * total * 0.45 * widthAt(i);
-          ctx.globalAlpha = t * (0.4 + 0.6 * tw);
-          ctx.fillStyle = "#ffffff";
-          ctx.beginPath();
-          ctx.moveTo(x, y - s * 2); ctx.lineTo(x + s * 0.5, y - s * 0.5); ctx.lineTo(x + s * 2, y);
-          ctx.lineTo(x + s * 0.5, y + s * 0.5); ctx.lineTo(x, y + s * 2); ctx.lineTo(x - s * 0.5, y + s * 0.5);
-          ctx.lineTo(x - s * 2, y); ctx.lineTo(x - s * 0.5, y - s * 0.5);
-          ctx.closePath();
-          ctx.fill();
-        }
-        ctx.restore();
-      }
-
-
+      drawTrail(ctx, styleRef.current.trail, g.trail, g.frame);
 
       for (const p of g.pipes) {
         drawPipe(ctx, p.x, 0, PIPE_W, p.top, true);
@@ -929,6 +922,10 @@ function Game() {
         } else {
           ctx.drawImage(img, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, KOKI_SIZE);
         }
+        // gorro y lentes (se combinan con cualquier personaje)
+        ctx.filter = "none";
+        const st = styleRef.current;
+        drawAccessories(ctx, selChar?.base ?? "koki", st.hat, st.glasses, -KOKI_SIZE / 2, -KOKI_SIZE / 2, KOKI_SIZE, g.frame);
         ctx.restore();
       }
       // la burbuja del escudo
@@ -1027,6 +1024,16 @@ function Game() {
           ctx.fillText(secs, 60, 42);
           ctx.fillStyle = "#fff";
         }
+        // reto de hoy: el condimento, bajo el puntaje
+        if (twist && modeRef.current === "daily") {
+          ctx.font = "bold 15px system-ui, sans-serif";
+          ctx.textAlign = "center";
+          const tl = `🗓️ ${twist.icon} ${twist.name}`;
+          ctx.strokeText(tl, WIDTH / 2, 108);
+          ctx.fillStyle = "#ffe08a";
+          ctx.fillText(tl, WIDTH / 2, 108);
+          ctx.fillStyle = "#fff";
+        }
         // power-ups activos, abajo al centro
         drawPowerHud(ctx, g.powers, WIDTH / 2, HEIGHT - GROUND_H - 70);
 
@@ -1051,9 +1058,15 @@ function Game() {
     const endGame = () => {
       if (stateRef.current !== "playing") return;
       const g = gameRef.current;
-      const bestKey = modeRef.current === "hard" ? "koki-best-hard" : modeRef.current === "time" ? "koki-best-time" : "koki-best";
+      const runMode = modeRef.current;
+      const bestKey = runMode === "hard" ? "koki-best-hard" : runMode === "time" ? "koki-best-time" : "koki-best";
       const b = Number(localStorage.getItem(bestKey) || 0);
-      if (g.score > b) {
+      // el reto de hoy tiene su propio ranking: no toca los récords
+      if (runMode === "daily") {
+        finishDaily(g.score);
+        onDailyPlayed();
+        missionEvent("dailies");
+      } else if (g.score > b) {
         localStorage.setItem(bestKey, String(g.score));
         if (modeRef.current === "hard") setBestHard(g.score);
         else if (modeRef.current === "time") setBestTime(g.score);
@@ -1064,7 +1077,14 @@ function Game() {
       setCoins(totalCoins);
       void syncScores();
       reportDead(g.score);
-      onFlappyGameEnd(modeRef.current, g.score, g.runCoins);
+      onFlappyGameEnd(runMode === "daily" ? "time" : runMode, g.score, g.runCoins);
+      // misiones de la semana y racha diaria
+      missionEvent("games");
+      missionEvent("coins", g.runCoins);
+      missionEvent("scoreRun", g.score);
+      if (runMode === "time") missionEvent("timeRun", g.score);
+      if (runMode === "hard") missionEvent("hardRun", g.score);
+      onPlayedToday();
       setState("over");
     };
 
@@ -1086,6 +1106,8 @@ function Game() {
 
   const tryUnlock = (id: string) => {
     if (unlocked.includes(id)) { selectCharacter(id); return; }
+    // los de logro no se compran
+    if (CHAR_BY_ID[id]?.achievement) return;
     const price = CHARACTERS.find((c) => c.id === id)?.price ?? 0;
     if (coins < price) return;
     const newCoins = coins - price;
@@ -1172,8 +1194,15 @@ function Game() {
                 className="w-full max-w-[300px] short:max-w-[260px] cursor-pointer touch-none select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
                 style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }}
               />
-              <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5 text-white font-bold text-sm backdrop-blur">
-                <span>🧁</span><span>{coins} pastelitos</span>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5 text-white font-bold text-sm backdrop-blur">
+                  <span>🧁</span><span>{coins} pastelitos</span>
+                </div>
+                {streakDays > 0 && (
+                  <div className="rounded-full bg-gradient-to-r from-orange-500 to-red-600 px-3 py-1.5 text-sm font-black text-white shadow">
+                    🔥 {streakDays} {streakDays === 1 ? "día" : "días"}
+                  </div>
+                )}
               </div>
               </div>
               <div className="flex w-full flex-col items-center gap-4 short:w-1/2 short:gap-3">
@@ -1203,6 +1232,15 @@ function Game() {
                 🏅 LOGROS
               </button>
               <button
+                onClick={(e) => { e.stopPropagation(); setShowMissions(true); }}
+                className="relative w-full rounded-full bg-gradient-to-b from-orange-400 to-red-600 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(127_29_29),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29)]"
+              >
+                📜 MISIONES
+                {claimable > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-yellow-300 px-1.5 text-sm font-black text-red-700 shadow">{claimable}</span>
+                )}
+              </button>
+              <button
                 onClick={(e) => { e.stopPropagation(); kickMusic(); setShowSettings(true); }}
                 className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(6_78_59),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(6_78_59)]"
               >
@@ -1229,6 +1267,28 @@ function Game() {
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-center text-2xl font-black text-white">Elige el modo</h2>
+              {(() => {
+                const tw = todayTwist();
+                const ds = dailyState();
+                return dailyDone ? (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowDailyBoard(true); }}
+                    className="w-full rounded-2xl bg-gradient-to-b from-emerald-500 to-teal-700 px-6 py-3 text-left text-white shadow-[0_5px_0_rgb(19_78_74),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1"
+                  >
+                    <div className="text-lg font-black">🗓️ RETO DE HOY: LISTO</div>
+                    <div className="text-xs font-bold text-white/85">{ds?.done ? `Hiciste ${ds.score} · ` : ""}Ver el ranking del día · Vuelve mañana po</div>
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setPickMode(false); startGame("daily"); }}
+                    className="w-full rounded-2xl bg-gradient-to-b from-emerald-400 to-teal-600 px-6 py-4 text-left text-white shadow-[0_5px_0_rgb(19_78_74),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(19_78_74)]"
+                  >
+                    <div className="text-xl font-black">🗓️ EL RETO DE HOY</div>
+                    <div className="text-xs font-bold text-white/90">{tw.icon} {tw.name}: {tw.desc}</div>
+                    <div className="text-[10px] font-bold text-white/75">Una sola partida, las mismas tuberías para todos · {dayKey()}</div>
+                  </button>
+                );
+              })()}
               <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(false); startGame("normal"); }}
                 className="w-full rounded-2xl bg-gradient-to-b from-red-400 to-red-600 px-6 py-4 text-left text-white shadow-[0_5px_0_rgb(127_29_29),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29)]"
@@ -1270,12 +1330,39 @@ function Game() {
         {state === "characters" && (
           <Overlay>
             <div className="w-full max-w-sm rounded-3xl bg-gradient-to-b from-indigo-900/95 to-slate-900/95 p-5 shadow-2xl border-2 border-white/10">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-3">
                 <h2 className="text-2xl font-black text-white">Personajes</h2>
                 <div className="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1 text-white font-bold text-sm">
                   <span>🧁</span><span>{coins}</span>
                 </div>
               </div>
+              <div className="mb-3 grid grid-cols-4 gap-1 rounded-full bg-black/30 p-1">
+                {([["chars", "🐾", "Gatos"], ["hat", "🎩", "Gorros"], ["glasses", "🕶️", "Lentes"], ["trail", "🌈", "Estelas"]] as const).map(([id, icon, label]) => (
+                  <button
+                    key={id}
+                    onClick={(e) => { e.stopPropagation(); setCharTab(id); }}
+                    className={`rounded-full px-1 py-1.5 text-[11px] font-black ${charTab === id ? "bg-white text-indigo-900" : "text-white/80"}`}
+                  >
+                    {icon} {label}
+                  </button>
+                ))}
+              </div>
+              {charTab !== "chars" && <OutfitPreview charId={selectedId} />}
+              {charTab !== "chars" ? (
+                <div className="max-h-[50vh] overflow-y-auto pr-1">
+                  <StyleShop
+                    kind={charTab}
+                    charId={selectedId}
+                    coins={coins}
+                    onSpend={(n) => {
+                      const left = Math.max(0, coins - n);
+                      setCoins(left);
+                      localStorage.setItem("koki-coins", String(left));
+                      void backupProfile();
+                    }}
+                  />
+                </div>
+              ) : (
               <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
                 {CHARACTERS.map((c) => {
                   const isUnlocked = unlocked.includes(c.id);
@@ -1318,16 +1405,23 @@ function Game() {
                           <div className="text-[10px] font-bold uppercase tracking-wider text-white/70">Tocar</div>
                         )
                       ) : (
+                        c.achievement ? (
+                          <div className="rounded-full bg-amber-400/30 px-2 py-0.5 text-center text-[10px] font-black leading-tight text-amber-100">
+                            🏅 Logro: {ACHIEVEMENTS.find((a) => a.id === c.achievement)?.name}
+                          </div>
+                        ) : (
                         <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black ${canBuy ? "bg-pink-500 text-white" : "bg-white/20 text-white/60"}`}>
                           🧁 {c.price}
                         </div>
+                        )
                       )}
                     </button>
                   );
                 })}
               </div>
+              )}
               <button
-                onClick={(e) => { e.stopPropagation(); setState("menu"); }}
+                onClick={(e) => { e.stopPropagation(); setCharTab("chars"); setState("menu"); }}
                 className="mt-5 w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_4px_0_rgba(0,0,0,0.3)] active:translate-y-0.5"
               >
                 ← Volver
@@ -1348,29 +1442,52 @@ function Game() {
         {state === "over" && !mp.match && (
           <Overlay>
             <div className="w-full max-w-sm rounded-3xl bg-gradient-to-b from-white to-slate-100 px-6 py-6 text-center shadow-2xl border-4 border-white/60">
-              <div className="text-3xl font-black text-red-600 drop-shadow-sm">{mode === "time" ? "⏱ ¡Se acabó el tiempo!" : "¡Game Over!"}</div>
+              <div className="text-3xl font-black text-red-600 drop-shadow-sm">{mode === "time" ? "⏱ ¡Se acabó el tiempo!" : mode === "daily" ? "🗓️ ¡Reto de hoy listo!" : "¡Game Over!"}</div>
               <div className="mt-4 grid grid-cols-3 gap-2">
                 <div className="rounded-2xl bg-slate-100 p-3">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Score</div>
                   <div className="text-2xl font-black text-slate-800">{score}</div>
                 </div>
+                {mode === "daily" ? (
+                  <div className="rounded-2xl bg-emerald-100 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Racha</div>
+                    <div className="text-2xl font-black text-emerald-700">🔥{streakDays}</div>
+                  </div>
+                ) : (
                 <div className="rounded-2xl bg-amber-100 p-3">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Mejor {mode === "hard" ? "🔥" : mode === "time" ? "⏱" : "🏆"}</div>
                   <div className="text-2xl font-black text-amber-700">{mode === "hard" ? bestHard : mode === "time" ? bestTime : best}</div>
                 </div>
+                )}
                 <div className="rounded-2xl bg-pink-100 p-3">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-pink-700">🧁</div>
                   <div className="text-2xl font-black text-pink-700">+{gameRef.current.runCoins}</div>
                 </div>
               </div>
-              {mode !== "time" && <GameOverFriends mode={mode} onOpen={() => setShowBoard(true)} />}
+              {mode === "daily" && (
+                <div className="mt-3 rounded-2xl bg-emerald-50 p-2 text-slate-800">
+                  <div className="mb-1 text-xs font-black uppercase tracking-wider text-emerald-700">🗓️ Ranking de hoy</div>
+                  <DailyBoard compact />
+                </div>
+              )}
+              {mode !== "time" && mode !== "daily" && <GameOverFriends mode={mode} onOpen={() => setShowBoard(true)} />}
               <div className="mt-5 flex flex-col gap-3">
+                {mode === "daily" ? (
+                  <button
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); setShowDailyBoard(true); }}
+                    className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-teal-600 px-6 py-4 text-xl font-black text-white shadow-[0_5px_0_rgb(19_78_74)] active:translate-y-1"
+                  >
+                    🗓️ RANKING DE HOY
+                  </button>
+                ) : (
                 <button
                   onClick={(e) => { e.stopPropagation(); startGame(); }}
                   className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-6 py-4 text-xl font-black text-white shadow-[0_5px_0_rgb(127_29_29),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29)]"
                 >
                   🔄 REINTENTAR
                 </button>
+                )}
                 <button
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); goToMenu(); }}
@@ -1396,7 +1513,7 @@ function Game() {
 
         {showBoard && (
           <LeaderboardModal
-            initialMode={boardMode ?? (mode === "time" ? "normal" : mode)}
+            initialMode={boardMode ?? (mode === "time" || mode === "daily" ? "normal" : mode)}
             initialTab={boardTab}
             onClose={() => { setShowBoard(false); setBoardTab("global"); setBoardMode(null); }}
           />
@@ -1442,6 +1559,8 @@ function Game() {
         )}
 
         {showAchievements && <AchievementsModal onClose={() => setShowAchievements(false)} />}
+        {showMissions && <MissionsModal onClose={() => { setShowMissions(false); setClaimable(claimableCount()); }} />}
+        {showDailyBoard && <DailyBoardModal onClose={() => setShowDailyBoard(false)} />}
         <AchievementToast />
 
         {showSettings && (

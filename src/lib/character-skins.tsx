@@ -2,7 +2,9 @@ import { useEffect, useRef } from "react";
 import { CHAR_BY_ID } from "./characters";
 
 /** Special skin effects painted over the character photo. */
-export type SkinFx = "rainbow" | "azul" | "rosa" | "verde" | "dorado" | "violeta" | "fuego" | "hielo" | "nieve";
+export type SkinFx = "rainbow" | "azul" | "rosa" | "verde" | "dorado" | "violeta" | "fuego" | "hielo" | "nieve"
+  // personajes que se ganan con logros (2.9)
+  | "acero" | "cosmos" | "electrico" | "lunar" | "arena" | "aurora";
 
 // Morado → azul → verde → amarillo → naranjo → rojo
 export const RAINBOW_COLORS = ["#8b3dff", "#2684ff", "#29c56f", "#ffe13b", "#ff9a2d", "#ff3f45"];
@@ -19,6 +21,12 @@ const RAMPS: Record<Exclude<SkinFx, "rainbow">, string[]> = {
   hielo: ["#2f7fae", "#6cc6ef", "#b5e9ff", "#e6f8ff", "#ffffff"],
   // gato negro vuelto blanco: el pelaje queda blanco y los ojos, nariz y boca siguen oscuros
   nieve: ["#1f252e", "#9aa6b4", "#e6ecf2", "#ffffff", "#ffffff"],
+  acero: ["#0d1117", "#3a4656", "#7f8fa6", "#c9d4e3", "#ffffff"],
+  cosmos: ["#07021a", "#2a0d6e", "#8a1fd1", "#ff5fd2", "#9ff3ff"],
+  electrico: ["#050b2b", "#1a2fa8", "#2fb8ff", "#fff23b", "#ffffff"],
+  lunar: ["#1b1f2e", "#4a5470", "#9aa4c4", "#e2e6f5", "#fffdf0"],
+  arena: ["#2a1a07", "#7a5320", "#c9a05a", "#ecd9a6", "#fffaf0"],
+  aurora: ["#04202a", "#0b7a72", "#3fe0a4", "#b98cff", "#ffe3fb"],
 };
 
 const spans = new WeakMap<HTMLImageElement, [number, number]>();
@@ -146,6 +154,15 @@ function paintShine(ctx: CanvasRenderingContext2D, W: number, H: number, fx: Ski
     g.addColorStop(0.5, "rgba(255,255,255,0)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
+  } else if (fx === "cosmos" || fx === "electrico") {
+    // estrellitas (cosmos) o chispas (eléctrico) sobre el pelaje
+    ctx.fillStyle = fx === "cosmos" ? "rgba(255,255,255,0.95)" : "rgba(255,250,150,0.95)";
+    for (let i = 0; i < 16; i++) {
+      const sx = ((Math.sin(i * 12.9898 + 3) * 43758.5453) % 1 + 1) % 1 * W;
+      const sy = ((Math.sin(i * 78.233 + 1) * 12543.123) % 1 + 1) % 1 * H;
+      const s = Math.max(1, W / (i % 3 ? 140 : 80));
+      ctx.fillRect(sx - s / 2, sy - s / 2, s, s);
+    }
   } else if (fx === "hielo") {
     ctx.fillStyle = "rgba(255,255,255,0.9)";
     for (let i = 0; i < 9; i++) {

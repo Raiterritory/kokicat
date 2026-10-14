@@ -25,7 +25,9 @@ let lastScore = -1;
 export function resetScenery() { scenePos = 0; lastScore = -1; }
 
 /** Which scene (with fraction) to draw now; call once per frame. */
-export function sceneryStep(score: number): number {
+export function sceneryStep(score: number, force?: number): number {
+  // el reto de hoy puede dejar un escenario fijo (noche o lluvia)
+  if (force != null) { scenePos = force; lastScore = score; return force; }
   const target = Math.floor(score / SCENE_EVERY);
   // al volver a empezar una partida, sin transición
   if (score < lastScore) scenePos = target;

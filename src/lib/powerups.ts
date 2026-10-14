@@ -40,15 +40,16 @@ export const timeScale = (p: PowerState) => (p.slow > 0 ? SLOW_SCALE : 1);
 export const coinValue = (p: PowerState) => (p.double > 0 ? 2 : 1);
 
 /** Called when a pipe appears: sometimes a power-up floats in the gap after it. */
-export function maybeSpawnPower(p: PowerState, x: number, gapCenter: number, gapH: number, blocked: boolean) {
+/** rnd: the random source (the daily challenge passes a seeded one, so everyone gets the same). */
+export function maybeSpawnPower(p: PowerState, x: number, gapCenter: number, gapH: number, blocked: boolean, rnd: () => number = Math.random) {
   p.since++;
-  if (blocked || p.since < MIN_GAP || p.pickups.length || Math.random() >= CHANCE) return;
+  if (blocked || p.since < MIN_GAP || p.pickups.length || rnd() >= CHANCE) return;
   p.since = 0;
   const kinds: PowerKind[] = ["shield", "slow", "double"];
   // el escudo no sale si ya tienes uno
   const pool = p.shield ? kinds.filter((k) => k !== "shield") : kinds;
-  const kind = pool[Math.floor(Math.random() * pool.length)];
-  p.pickups.push({ x, y: gapCenter + (Math.random() - 0.5) * (gapH - 100), kind, bob: Math.random() * Math.PI * 2, taken: false });
+  const kind = pool[Math.floor(rnd() * pool.length)];
+  p.pickups.push({ x, y: gapCenter + (rnd() - 0.5) * (gapH - 100), kind, bob: rnd() * Math.PI * 2, taken: false });
 }
 
 /** Moves the pickups with the world and returns the one Koki just took (or null). */
