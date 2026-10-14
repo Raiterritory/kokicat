@@ -77,7 +77,7 @@ export function grantItem(kind: "hat" | "glasses" | "trail", id: string) {
 
 // ---- dónde va la cabeza de cada personaje (en la imagen estirada a un cuadrado, 0..1) ----
 type Anchor = { eyeX: number; eyeY: number; spacing: number; angle: number; topX: number; topY: number; headW: number; oneEye?: boolean };
-const ANCHORS: Record<string, Anchor> = {
+export const ANCHORS: Record<string, Anchor> = {
   koki: { eyeX: 0.735, eyeY: 0.33, spacing: 0.14, angle: -0.24, topX: 0.73, topY: 0.16, headW: 0.34 },
   taz: { eyeX: 0.69, eyeY: 0.285, spacing: 0.3, angle: 0.02, topX: 0.67, topY: 0.13, headW: 0.52 },
   gufi: { eyeX: 0.61, eyeY: 0.385, spacing: 0.13, angle: -0.2, topX: 0.6, topY: 0.23, headW: 0.3 },
@@ -122,7 +122,7 @@ const star = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number, in
 };
 
 /** Hat with its base centered at (0,0), w = width of the brim; it grows upwards (negative y). */
-function drawHat(ctx: CanvasRenderingContext2D, id: HatId, w: number, frame: number) {
+export function drawHat(ctx: CanvasRenderingContext2D, id: HatId, w: number, frame: number) {
   ctx.lineJoin = "round";
   ctx.lineWidth = Math.max(1, w * 0.04);
   ctx.strokeStyle = "rgba(0,0,0,0.55)";
@@ -254,7 +254,7 @@ function drawHat(ctx: CanvasRenderingContext2D, id: HatId, w: number, frame: num
 }
 
 /** Glasses centered between the eyes; s = distance between the eyes. */
-function drawGlasses(ctx: CanvasRenderingContext2D, id: GlassesId, s: number, oneEye: boolean, frame: number) {
+export function drawGlasses(ctx: CanvasRenderingContext2D, id: GlassesId, s: number, oneEye: boolean, frame: number) {
   const r = s * 0.42;
   const eyes = oneEye ? [0] : [-s / 2, s / 2];
   ctx.lineJoin = "round";

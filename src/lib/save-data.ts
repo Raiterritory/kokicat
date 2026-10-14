@@ -89,6 +89,40 @@ function mergeStyle(local: string | null | undefined, other: string | null | und
   return JSON.stringify({ ...base, owned: Array.from(new Set([...(a.owned ?? []), ...(b.owned ?? [])])) });
 }
 
+type Weekly = { week: number; prog?: Record<string, number>; claimed?: string[]; kinds?: string[] };
+type Streak = { last: string; count: number; best: number };
+type Daily = { day: string; score: number; done: boolean; sent: boolean };
+/**
+ * Weekly missions (same week: each counter keeps the highest, claims and boss kinds are joined),
+ * the streak (the most recent one wins; best is the highest) and today's challenge (played on
+ * either device counts as played).
+ */
+export function mergeProgress(local: (k: string) => string | null | undefined, other: (k: string) => string | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  const lw = readJSON<Weekly | null>(local("koki-weekly"), null), ow = readJSON<Weekly | null>(other("koki-weekly"), null);
+  if (ow && (!lw || ow.week > lw.week)) out["koki-weekly"] = JSON.stringify(ow);
+  else if (ow && lw && ow.week === lw.week) {
+    const prog: Record<string, number> = { ...(lw.prog ?? {}) };
+    for (const [k, v] of Object.entries(ow.prog ?? {})) if (typeof v === "number" && v > (prog[k] ?? 0)) prog[k] = v;
+    const kinds = Array.from(new Set([...(lw.kinds ?? []), ...(ow.kinds ?? [])]));
+    if (kinds.length) prog.bossKinds = Math.max(prog.bossKinds ?? 0, kinds.length);
+    out["koki-weekly"] = JSON.stringify({ week: lw.week, prog, claimed: Array.from(new Set([...(lw.claimed ?? []), ...(ow.claimed ?? [])])), kinds });
+  }
+  const ls = readJSON<Streak | null>(local("koki-streak"), null), os = readJSON<Streak | null>(other("koki-streak"), null);
+  if (os && os.last) {
+    const best = Math.max(ls?.best ?? 0, os.best ?? 0);
+    if (!ls || !ls.last || os.last > ls.last) out["koki-streak"] = JSON.stringify({ ...os, best });
+    else if (os.last === ls.last) out["koki-streak"] = JSON.stringify({ last: ls.last, count: Math.max(ls.count, os.count), best });
+    else if (best > ls.best) out["koki-streak"] = JSON.stringify({ ...ls, best });
+  }
+  const ld = readJSON<Daily | null>(local("koki-daily"), null), od = readJSON<Daily | null>(other("koki-daily"), null);
+  if (od && od.day && (!ld || od.day > ld.day)) out["koki-daily"] = JSON.stringify(od);
+  else if (od && ld && od.day === ld.day) {
+    out["koki-daily"] = JSON.stringify({ day: ld.day, score: Math.max(ld.score, od.score), done: ld.done || od.done, sent: ld.sent });
+  }
+  return out;
+}
+
 /** Pastelitos que había en la nube la última vez que se juntó (cada aparato lleva el suyo). */
 const COINS_SYNCED = "koki-coins-synced";
 /** After adopting a profile from the cloud: from now on only this phone's changes are added. */
@@ -115,7 +149,7 @@ export function mergeCloud(cloud: Record<string, unknown>): boolean {
     localStorage.setItem("koki-coins", String(merged));
   }
   markCoinsSynced();
-  for (const k of ["koki-best", "koki-best-hard", "koki-best-taz"] as const) {
+  for (const k of ["koki-best", "koki-best-hard", "koki-best-taz", "koki-best-time"] as const) {
     const v = Math.max(Number(localStorage.getItem(k) || 0), Number(str(k) || 0));
     if (v > 0) localStorage.setItem(k, String(v));
   }
@@ -136,6 +170,9 @@ export function mergeCloud(cloud: Record<string, unknown>): boolean {
   localStorage.setItem("koki-stats", JSON.stringify(stats));
   const style = mergeStyle(localStorage.getItem("koki-style"), str("koki-style"));
   if (style) localStorage.setItem("koki-style", style);
+  // misiones, racha y reto de hoy: lo jugado en otro aparato (la PS4) también cuenta aquí
+  const progress = mergeProgress((k) => localStorage.getItem(k), str);
+  for (const [k, v] of Object.entries(progress)) localStorage.setItem(k, v);
   return before !== JSON.stringify(currentData());
 }
 
