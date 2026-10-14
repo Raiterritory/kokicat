@@ -14,6 +14,35 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_scores: {
+        Row: {
+          created_at: string
+          day: string
+          player_id: string
+          score: number
+        }
+        Insert: {
+          created_at?: string
+          day: string
+          player_id: string
+          score?: number
+        }
+        Update: {
+          created_at?: string
+          day?: string
+          player_id?: string
+          score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_scores_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       friendships: {
         Row: {
           accepted: boolean
@@ -177,6 +206,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      daily_leaderboard: {
+        Args: { p_day: string; p_limit?: number }
+        Returns: {
+          id: string
+          nickname: string
+          score: number
+          skin: string
+        }[]
+      }
       delete_player: {
         Args: { p_id: string; p_secret: string }
         Returns: undefined
@@ -292,6 +330,10 @@ export type Database = {
       }
       set_taz_score: {
         Args: { p_id: string; p_score: number; p_secret: string }
+        Returns: undefined
+      }
+      submit_daily: {
+        Args: { p_day: string; p_id: string; p_score: number; p_secret: string }
         Returns: undefined
       }
       submit_score: {
