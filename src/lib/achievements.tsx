@@ -102,12 +102,12 @@ export function updateStats(change: (s: Stats) => void) {
 }
 
 // ---- Eventos del juego ----
-export const onFlappyGameEnd = (mode: "normal" | "hard", score: number, coins: number) =>
+export const onFlappyGameEnd = (mode: "normal" | "hard" | "time", score: number, coins: number) =>
   updateStats((s) => {
     s.games += 1;
     s.coins += coins;
     if (mode === "hard") s.bestHard = Math.max(s.bestHard, score);
-    else s.bestNormal = Math.max(s.bestNormal, score);
+    else if (mode === "normal") s.bestNormal = Math.max(s.bestNormal, score);
   });
 export const onBossBeaten = () => updateStats((s) => { s.bosses += 1; });
 export const onGoldenCaught = () => updateStats((s) => { s.goldens += 1; });

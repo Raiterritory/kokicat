@@ -12,16 +12,21 @@ import bossGafasPng from "@/assets/boss-gafas.png";
 // Jefes posibles: cada 15 puntos sale uno al azar
 const BOSS_IMAGES = [bossPng, bossLenguaPng, bossLentesPng, bossGafasPng];
 import {
-  BEAM_FRAMES,
-  BEAM_H,
   BOSS_EVERY,
   BOSS_FRAMES,
   BOSS_SIZE,
-  BOSS_WARN,
   createBoss,
   updateBoss,
+  bossHits,
+  drawBossAttacks,
+  BOSS_KINDS,
   type BossState,
 } from "@/lib/bossfight";
+import {
+  newPowers, maybeSpawnPower, updatePowers, absorbCrash, timeScale, coinValue,
+  drawPowerPickups, drawShield, drawPowerHud,
+} from "@/lib/powerups";
+import { sceneryStep, drawSky, drawRain } from "@/lib/scenery";
 import { drawSkinCharacter, SkinPreview } from "@/lib/character-skins";
 import { CHARACTERS, CHAR_BY_ID } from "@/lib/characters";
 import { syncScores, syncScoresExact, syncSkin, backupProfile, loadRivals, type BoardRow, type BoardMode } from "@/lib/leaderboard";
@@ -118,7 +123,11 @@ type Particle = {
   kind: "puff" | "star" | "coin" | "flame";
 };
 type GameState = "menu" | "characters" | "ready" | "playing" | "over";
-type Mode = "normal" | "hard";
+/** "time": contrarreloj, cuántos tubos pasas en 60 segundos (solo en este teléfono, sin ranking online) */
+type Mode = "normal" | "hard" | "time";
+const TIME_FRAMES = 60 * 60;
+/** chocar en contrarreloj no termina la partida: resta 5 segundos */
+const TIME_PENALTY = 5 * 60;
 
 
 
@@ -136,6 +145,7 @@ function Game() {
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
   const [bestHard, setBestHard] = useState(0);
+  const [bestTime, setBestTime] = useState(0);
   const [coins, setCoins] = useState(0);
   const [state, setState] = useState<GameState>("menu");
   const [selectedId, setSelectedId] = useState<string>("koki");
@@ -225,6 +235,8 @@ function Game() {
     boss: null as BossState | null,
     nextBoss: BOSS_EVERY,
     bossSkin: 0,
+    powers: newPowers(),
+    timeLeft: 0,
   });
 
   useEffect(() => {
@@ -247,6 +259,7 @@ function Game() {
   useEffect(() => {
     setBest(Number(localStorage.getItem("koki-best") || 0));
     setBestHard(Number(localStorage.getItem("koki-best-hard") || 0));
+    setBestTime(Number(localStorage.getItem("koki-best-time") || 0));
     setCoins(Number(localStorage.getItem("koki-coins") || 0));
     setUnlocked(loadUnlocked());
     onCharacters(loadUnlocked().length, CHARACTERS.length);
@@ -299,6 +312,7 @@ function Game() {
       particles: [], trail: [], goldens: [], magnet: 0, sinceGolden: 0,
       speed: PIPE_SPEED, scroll: 0, spawnDist: firstPipeDist(),
       boss: null, nextBoss: BOSS_EVERY, bossSkin: 0,
+      powers: newPowers(), timeLeft: 0,
     };
     setScore(0);
   };
@@ -355,9 +369,10 @@ function Game() {
     // En multijugador todos enfrentan los mismos jefes, en el mismo orden
     bossRngRef.current = seed == null ? Math.random : seededRandom(seed ^ 0x5bd1e995);
     const runMode = modeRef.current;
-    if (seed == null) {
+    if (seed == null && runMode !== "time") {
       void loadRivals(runMode).then((r) => { if (modeRef.current === runMode) rivalsRef.current = r; });
     }
+    if (runMode === "time") gameRef.current.timeLeft = TIME_FRAMES;
     gameRef.current.speed = modeRef.current === "hard" ? HARD_START : PIPE_SPEED;
     setState("playing");
     gameRef.current.vy = JUMP;
@@ -472,26 +487,18 @@ function Game() {
       ctx.rect(0, 0, WIDTH, HEIGHT);
       ctx.clip();
 
-      const grad = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-      grad.addColorStop(0, "#1a2947");
-      grad.addColorStop(0.5, "#4a5f8a");
-      grad.addColorStop(1, "#f4a06a");
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
-      ctx.fillStyle = "rgba(255, 210, 140, 0.45)";
-      ctx.beginPath();
-      ctx.arc(WIDTH - 80, 140, 55, 0, Math.PI * 2);
-      ctx.fill();
-
+      // el cielo cambia con el puntaje: atardecer, noche con estrellas, lluvia… (ver scenery.ts)
+      const scene = sceneryStep(stateRef.current === "playing" || stateRef.current === "over" ? g.score : 0);
+      const palette = drawSky(ctx, WIDTH, HEIGHT, scene, g.frame);
       drawSimpleSkyline(ctx, WIDTH, HEIGHT - GROUND_H, {
         offset: g.frame * 0.3, baseY: HEIGHT - GROUND_H - 90,
-        color: "#2a3255", spacing: 70, maxH: 110, minH: 55, seed: 1,
+        color: palette.far, spacing: 70, maxH: 110, minH: 55, seed: 1,
       });
       drawSimpleSkyline(ctx, WIDTH, HEIGHT - GROUND_H, {
         offset: g.frame * 0.9, baseY: HEIGHT - GROUND_H - 30,
-        color: "#141a33", spacing: 90, maxH: 100, minH: 40, seed: 7,
+        color: palette.near, spacing: 90, maxH: 100, minH: 40, seed: 7,
       });
+      drawRain(ctx, WIDTH, HEIGHT - GROUND_H, scene, g.frame);
 
       g.frame++;
       g.scroll += g.speed;
@@ -503,16 +510,25 @@ function Game() {
           ? Math.min(HARD_MAX_SPEED, HARD_START + g.score * HARD_SPEED_PER_POINT)
           : PIPE_SPEED;
 
+        // cámara lenta (power-up): todo el mundo va más despacio, también la caída de Koki
+        const ts = timeScale(g.powers);
+        const move = g.speed * ts;
+        // contrarreloj: el tiempo corre de verdad (no se frena con la cámara lenta)
+        if (modeRef.current === "time" && !inMatch) {
+          g.timeLeft--;
+          if (g.timeLeft <= 0) { g.timeLeft = 0; endGame(); }
+        }
+
         // fisica flappy: gravedad constante + impulso fijo
-        g.vy += GRAVITY;
+        g.vy += GRAVITY * ts;
         if (g.vy > MAX_FALL) g.vy = MAX_FALL;
-        g.y += g.vy;
+        g.y += g.vy * ts;
         // rotacion tipo flappy: apunta hacia donde va
         const targetRot = g.vy < 0 ? -0.45 : Math.min(1.4, g.vy * 0.12);
         g.rot += (targetRot - g.rot) * (g.vy < 0 ? 0.5 : 0.12);
 
         // spawn por distancia recorrida (asi el espaciado no cambia con la velocidad)
-        g.spawnDist += g.speed;
+        g.spawnDist += move;
         if (g.boss) g.spawnDist = 0;
         if (g.spawnDist >= PIPE_INTERVAL * PIPE_SPEED) {
           g.spawnDist = 0;
@@ -534,6 +550,7 @@ function Game() {
               bob: rng() * Math.PI * 2,
             });
           }
+          const goldensBefore = g.goldens.length;
           // Koki dorado: raro, y nunca dos seguidos
           if (g.sinceGolden >= GOLDEN_MIN_GAP && rng() < GOLDEN_CHANCE) {
             g.sinceGolden = 0;
@@ -544,21 +561,42 @@ function Game() {
               bob: rng() * Math.PI * 2,
             });
           }
+          // power-ups (escudo, cámara lenta, pastelitos x2): solo jugando solo, con su propio azar
+          // (así las tuberías de las partidas en vivo siguen iguales que en el teléfono de los demás y la PS4)
+          maybeSpawnPower(g.powers, spawnX + PIPE_W + 70, top + GAP / 2, GAP, inMatch || g.goldens.length > goldensBefore);
         }
-        g.pipes.forEach((p) => (p.x -= g.speed));
+        g.pipes.forEach((p) => (p.x -= move));
         g.pipes = g.pipes.filter((p) => p.x + PIPE_W > 0);
-        g.coins.forEach((c) => { c.x -= g.speed; c.bob += 0.1; });
+        g.coins.forEach((c) => { c.x -= move; c.bob += 0.1; });
         g.coins = g.coins.filter((c) => c.x + COIN_SIZE > 0 && !c.taken);
-        g.goldens.forEach((gd) => { gd.x -= g.speed; gd.bob += 0.09; });
+        g.goldens.forEach((gd) => { gd.x -= move; gd.bob += 0.09; });
         g.goldens = g.goldens.filter((gd) => gd.x + GOLDEN_SIZE > 0 && !gd.taken);
 
         const kx = kokiX;
         const ky = g.y;
         const r = KOKI_SIZE / 2 - 6;
-        if (ky + r > HEIGHT - GROUND_H || ky - r < 0) endGame();
+        /*
+         * Un choque: con escudo se aguanta (y un momento sin chocar); en contrarreloj resta 5 s
+         * y Koki sigue; si no, se acaba la partida.
+         */
+        const crash = (ground: boolean) => {
+          if (stateRef.current !== "playing") return;
+          const saved = absorbCrash(g.powers) || (modeRef.current === "time" && !inMatch && (() => {
+            g.timeLeft = Math.max(0, g.timeLeft - TIME_PENALTY);
+            g.powers.invuln = 70;
+            return g.timeLeft > 0;
+          })());
+          if (!saved) { endGame(); return; }
+          if (ground) { g.y = HEIGHT - GROUND_H - r - 2; g.vy = JUMP; }
+          if (g.y - r < 0) { g.y = r + 1; g.vy = 1; }
+          spawnStars(kx, g.y);
+          playFlap();
+        };
+        if (ky + r > HEIGHT - GROUND_H) crash(true);
+        else if (ky - r < 0) crash(false);
         for (const p of g.pipes) {
           if (kx + r > p.x && kx - r < p.x + PIPE_W) {
-            if (ky - r < p.top || ky + r > p.top + GAP) endGame();
+            if (ky - r < p.top || ky + r > p.top + GAP) crash(false);
           }
           if (!p.passed && p.x + PIPE_W < kx) {
             p.passed = true;
@@ -600,16 +638,23 @@ function Game() {
           }
           if (dx * dx + dy * dy < (r + COIN_SIZE / 2) * (r + COIN_SIZE / 2)) {
             c.taken = true;
-            g.runCoins++;
+            g.runCoins += coinValue(g.powers);
             spawnCoinBurst(c.x, c.y);
             playFlap();
           }
         }
 
-        // --- JEFE: aparece cada BOSS_EVERY puntos ---
-        if (!g.boss && g.score > 0 && g.score >= g.nextBoss) {
-          g.boss = createBoss(WIDTH, HEIGHT);
-          g.bossSkin = Math.floor(bossRngRef.current() * BOSS_IMAGES.length);
+        // power-ups que flotan entre las tuberías
+        const gotPower = updatePowers(g.powers, move, kx, ky, r);
+        if (gotPower) { spawnStars(kx, ky); playMeow(); }
+
+        // --- JEFE: aparece cada BOSS_EVERY puntos (no en contrarreloj) ---
+        if (!g.boss && g.score > 0 && g.score >= g.nextBoss && modeRef.current !== "time") {
+          const skin = Math.floor(bossRngRef.current() * BOSS_IMAGES.length);
+          // cada jefe ataca distinto: rayo, tubos o muro (en vivo, siempre el rayo, igual que en la PS4)
+          const kind = inMatch ? "rayo" : BOSS_KINDS[Math.floor(Math.random() * BOSS_KINDS.length)];
+          g.boss = createBoss(WIDTH, HEIGHT, kind);
+          g.bossSkin = skin;
           g.nextBoss = g.score + BOSS_EVERY;
           playBossStart();
         }
@@ -621,12 +666,9 @@ function Game() {
             groundHeight: GROUND_H,
             playerY: ky,
             playerVelocity: g.vy,
+            timeScale: ts,
           });
-          for (const s of b.shots) {
-            if (s.t >= BOSS_WARN && s.t < BOSS_WARN + BEAM_FRAMES) {
-              if (Math.abs(ky - s.y) < BEAM_H / 2 + r - 4) endGame();
-            }
-          }
+          if (bossHits(b, kx, ky, r)) crash(false);
           if (bossStatus.finished) {
             g.boss = null;
             g.score += 5;
@@ -783,6 +825,9 @@ function Game() {
         ctx.restore();
       }
 
+      // power-ups flotando
+      drawPowerPickups(ctx, g.powers);
+
       // aura de absorcion
       if (g.magnet > 0) {
         const t = g.magnet / MAGNET_FRAMES;
@@ -886,6 +931,8 @@ function Game() {
         }
         ctx.restore();
       }
+      // la burbuja del escudo
+      if (stateRef.current === "playing") drawShield(ctx, g.powers, kokiX, g.y, KOKI_SIZE, g.frame);
 
 
       for (const p of g.particles) {
@@ -924,34 +971,7 @@ function Game() {
       // --- JEFE: dibujo ---
       const bs = g.boss;
       if (bs) {
-        for (const s of bs.shots) {
-          if (s.t < BOSS_WARN) {
-            ctx.save();
-            ctx.globalAlpha = 0.3 + 0.45 * (s.t / BOSS_WARN);
-            ctx.strokeStyle = "#ff3b3b";
-            ctx.lineWidth = 2;
-            ctx.setLineDash([10, 8]);
-            ctx.beginPath(); ctx.moveTo(0, s.y); ctx.lineTo(bs.x, s.y); ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(kokiX, s.y, 13 + Math.sin(s.t * 0.35) * 2, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.restore();
-          } else {
-            ctx.save();
-            const lg = ctx.createLinearGradient(0, s.y - BEAM_H / 2, 0, s.y + BEAM_H / 2);
-            lg.addColorStop(0, "rgba(255,60,200,0)");
-            lg.addColorStop(0.3, "#ff3bd0");
-            lg.addColorStop(0.5, "#ffffff");
-            lg.addColorStop(0.7, "#3bd8ff");
-            lg.addColorStop(1, "rgba(60,200,255,0)");
-            ctx.fillStyle = lg;
-            ctx.shadowColor = "#ff3bd0"; ctx.shadowBlur = 20;
-            ctx.fillRect(0, s.y - BEAM_H / 2 + Math.sin(g.frame) * 2, bs.x, BEAM_H);
-            ctx.restore();
-          }
-        }
+        drawBossAttacks(ctx, bs, kokiX, HEIGHT - GROUND_H, WIDTH, g.frame);
         const bImg = imgCacheRef.current[`__boss${g.bossSkin}`];
         ctx.save();
         ctx.translate(bs.x, bs.y);
@@ -997,6 +1017,18 @@ function Game() {
           ctx.strokeText(hard, 60, 40);
           ctx.fillText(hard, 60, 40);
         }
+        // contrarreloj: el tiempo que queda (rojo en los últimos 10 s)
+        if (modeRef.current === "time" && !inMatch) {
+          ctx.font = "bold 26px system-ui, sans-serif";
+          ctx.textAlign = "left";
+          const secs = `⏱ ${(g.timeLeft / 60).toFixed(1)}`;
+          ctx.strokeText(secs, 60, 42);
+          ctx.fillStyle = g.timeLeft < 600 ? "#ff6b6b" : "#fff";
+          ctx.fillText(secs, 60, 42);
+          ctx.fillStyle = "#fff";
+        }
+        // power-ups activos, abajo al centro
+        drawPowerHud(ctx, g.powers, WIDTH / 2, HEIGHT - GROUND_H - 70);
 
 
         if (g.magnet > 0) {
@@ -1019,11 +1051,12 @@ function Game() {
     const endGame = () => {
       if (stateRef.current !== "playing") return;
       const g = gameRef.current;
-      const bestKey = modeRef.current === "hard" ? "koki-best-hard" : "koki-best";
+      const bestKey = modeRef.current === "hard" ? "koki-best-hard" : modeRef.current === "time" ? "koki-best-time" : "koki-best";
       const b = Number(localStorage.getItem(bestKey) || 0);
       if (g.score > b) {
         localStorage.setItem(bestKey, String(g.score));
         if (modeRef.current === "hard") setBestHard(g.score);
+        else if (modeRef.current === "time") setBestTime(g.score);
         else setBest(g.score);
       }
       const totalCoins = Number(localStorage.getItem("koki-coins") || 0) + g.runCoins;
@@ -1211,6 +1244,13 @@ function Game() {
                 <div className="text-xs font-bold text-white/85">Cada vez más rápido · Récord: {bestHard}</div>
               </button>
               <button
+                onClick={(e) => { e.stopPropagation(); setPickMode(false); startGame("time"); }}
+                className="w-full rounded-2xl bg-gradient-to-b from-sky-400 to-blue-600 px-6 py-4 text-left text-white shadow-[0_5px_0_rgb(30_58_138),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(30_58_138)]"
+              >
+                <div className="text-xl font-black">⏱ CONTRARRELOJ</div>
+                <div className="text-xs font-bold text-white/85">¿Cuántos tubos pasas en 60 segundos? · Récord: {bestTime}</div>
+              </button>
+              <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(false); setBoardTab("friends"); setShowBoard(true); }}
                 className="w-full rounded-2xl bg-gradient-to-b from-violet-400 to-indigo-600 px-6 py-4 text-left text-white shadow-[0_5px_0_rgb(49_46_129),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(49_46_129)]"
               >
@@ -1308,22 +1348,22 @@ function Game() {
         {state === "over" && !mp.match && (
           <Overlay>
             <div className="w-full max-w-sm rounded-3xl bg-gradient-to-b from-white to-slate-100 px-6 py-6 text-center shadow-2xl border-4 border-white/60">
-              <div className="text-3xl font-black text-red-600 drop-shadow-sm">¡Game Over!</div>
+              <div className="text-3xl font-black text-red-600 drop-shadow-sm">{mode === "time" ? "⏱ ¡Se acabó el tiempo!" : "¡Game Over!"}</div>
               <div className="mt-4 grid grid-cols-3 gap-2">
                 <div className="rounded-2xl bg-slate-100 p-3">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Score</div>
                   <div className="text-2xl font-black text-slate-800">{score}</div>
                 </div>
                 <div className="rounded-2xl bg-amber-100 p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Mejor {mode === "hard" ? "🔥" : "🏆"}</div>
-                  <div className="text-2xl font-black text-amber-700">{mode === "hard" ? bestHard : best}</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Mejor {mode === "hard" ? "🔥" : mode === "time" ? "⏱" : "🏆"}</div>
+                  <div className="text-2xl font-black text-amber-700">{mode === "hard" ? bestHard : mode === "time" ? bestTime : best}</div>
                 </div>
                 <div className="rounded-2xl bg-pink-100 p-3">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-pink-700">🧁</div>
                   <div className="text-2xl font-black text-pink-700">+{gameRef.current.runCoins}</div>
                 </div>
               </div>
-              <GameOverFriends mode={mode} onOpen={() => setShowBoard(true)} />
+              {mode !== "time" && <GameOverFriends mode={mode} onOpen={() => setShowBoard(true)} />}
               <div className="mt-5 flex flex-col gap-3">
                 <button
                   onClick={(e) => { e.stopPropagation(); startGame(); }}
@@ -1356,7 +1396,7 @@ function Game() {
 
         {showBoard && (
           <LeaderboardModal
-            initialMode={boardMode ?? mode}
+            initialMode={boardMode ?? (mode === "time" ? "normal" : mode)}
             initialTab={boardTab}
             onClose={() => { setShowBoard(false); setBoardTab("global"); setBoardMode(null); }}
           />
