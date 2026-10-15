@@ -1769,7 +1769,8 @@ function drawSimpleSkyline(
     const r = Math.sin((i + seed) * 12.9898) * 43758.5453;
     const rand = r - Math.floor(r);
     const h = minH + rand * (maxH - minH);
-    const bx = i * spacing - off;
+    // cada edificio que sale por la izquierda vuelve a entrar por la derecha (antes quedaba un hueco)
+    const bx = ((((i * spacing - off) % scrollLoop) + scrollLoop) % scrollLoop) - spacing;
     const bw = spacing - 8;
     const by = baseY - h;
     ctx.fillRect(bx, by, bw, groundY - by);
