@@ -119,21 +119,35 @@ async function readCloudSave(p: Player): Promise<Record<string, unknown> | null 
  * Keeps a copy of the save (pastelitos, characters, records, skin) online, without the account key.
  * First it merges what is already online (e.g. what you earned on the PS4), so nothing is lost.
  */
-export async function backupProfile() {
+export async function backupProfile(): Promise<boolean> {
   const p = getPlayer();
-  if (!p) return;
+  if (!p) return false;
   const { currentData, mergeCloud, markCoinsSynced } = await import("./save-data");
   // después de "Borrar datos guardados" la copia de la nube se reemplaza, no se junta
   const reset = localStorage.getItem("koki-cloud-reset") === "1";
   if (!reset) {
     const cloud = await readCloudSave(p);
-    if (cloud === "error") return; // sin conexión: se junta y se sube la próxima vez
+    if (cloud === "error") return false; // sin conexión: se junta y se sube la próxima vez
     if (cloud && mergeCloud(cloud)) window.dispatchEvent(new Event("koki-cloud"));
   }
   const data = currentData();
   delete data["koki-player"];
   const { error } = await rpc("save_profile", { p_id: p.id, p_secret: p.secret, p_data: data });
   if (reset && !error) { localStorage.removeItem("koki-cloud-reset"); markCoinsSynced(); }
+  return !error;
+}
+
+/** "Cargar partida": trae lo que está en la nube (lo del teléfono o la PS4) y lo junta con lo de aquí. */
+export async function loadFromCloud(): Promise<{ ok: boolean; msg: string }> {
+  const p = getPlayer();
+  if (!p) return { ok: false, msg: "Primero crea tu usuario online" };
+  const cloud = await readCloudSave(p);
+  if (cloud === "error") return { ok: false, msg: "Sin conexión, intenta de nuevo" };
+  if (!cloud) return { ok: false, msg: "El servidor aún no tiene esta opción activada" };
+  const { mergeCloud } = await import("./save-data");
+  mergeCloud(cloud);
+  window.dispatchEvent(new Event("koki-cloud"));
+  return { ok: true, msg: "✅ Partida cargada" };
 }
 
 /** Signs this phone into an existing profile with nickname + recovery code, and restores its save. */

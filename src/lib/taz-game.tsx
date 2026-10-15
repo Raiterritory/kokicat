@@ -446,8 +446,8 @@ export function TazModeScreen({
         <div className="flex w-full max-w-sm flex-col items-center gap-4 px-6 text-center short:max-w-3xl short:flex-row short:gap-8">
           {/* logo: arrastrarlo hacia la izquierda (con el dedo puesto) vuelve a KokiCat */}
           <div className="flex w-full flex-col items-center short:w-1/2">
-            <div className="w-full max-w-[300px] cursor-grab touch-none select-none short:max-w-[260px]" style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }} {...logoHandlers}>
-              <TazLogo className="w-full drop-shadow-[0_8px_16px_rgba(0,0,0,0.45)]" />
+            <div className="w-full max-w-[18.75rem] cursor-grab touch-none select-none short:max-w-[16.25rem]" style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }} {...logoHandlers}>
+              <TazLogo className="w-full drop-shadow-[0_0.5rem_1rem_rgba(0,0,0,0.45)]" />
             </div>
           </div>
 
@@ -461,15 +461,15 @@ export function TazModeScreen({
             )}
             <button
               onClick={play}
-              className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-10 py-4 text-2xl font-black tracking-wide text-white shadow-[0_6px_0_rgb(127_29_29),0_10px_20px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:translate-y-1"
+              className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-10 py-4 text-2xl font-black tracking-wide text-white shadow-[0_0.375rem_0_rgb(127_29_29),0_0.625rem_1.25rem_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:translate-y-1"
               style={{ textShadow: "0 2px 0 rgba(0,0,0,0.25), 0 0 2px rgba(0,0,0,0.35)" }}
             >
               {screen === "result" ? "🔄 OTRA VEZ" : "▶ JUGAR"}
             </button>
-            <button onClick={onRanking} className={`${btn} bg-gradient-to-b from-amber-300 to-amber-500 shadow-[0_5px_0_rgb(146_64_14),0_8px_16px_rgba(0,0,0,0.4)]`}>🏆 RANKING</button>
-            <button onClick={onMultiplayer} className={`${btn} bg-gradient-to-b from-violet-400 to-indigo-600 shadow-[0_5px_0_rgb(49_46_129),0_8px_16px_rgba(0,0,0,0.4)]`}>⚔️ MULTIJUGADOR</button>
+            <button onClick={onRanking} className={`${btn} bg-gradient-to-b from-amber-300 to-amber-500 shadow-[0_0.3125rem_0_rgb(146_64_14),0_0.5rem_1rem_rgba(0,0,0,0.4)]`}>🏆 RANKING</button>
+            <button onClick={onMultiplayer} className={`${btn} bg-gradient-to-b from-violet-400 to-indigo-600 shadow-[0_0.3125rem_0_rgb(49_46_129),0_0.5rem_1rem_rgba(0,0,0,0.4)]`}>⚔️ MULTIJUGADOR</button>
             {/* volver a Koki: mismo estilo que los demás botones, en el azul de Koki */}
-            <button onClick={onBack} className={`${btn} bg-gradient-to-b from-sky-400 to-blue-600 shadow-[0_5px_0_rgb(30_58_138),0_8px_16px_rgba(0,0,0,0.4)]`}>
+            <button onClick={onBack} className={`${btn} bg-gradient-to-b from-sky-400 to-blue-600 shadow-[0_0.3125rem_0_rgb(30_58_138),0_0.5rem_1rem_rgba(0,0,0,0.4)]`}>
               🐱 VOLVER A KOKI
             </button>
             {screen === "menu" && <div className="text-xs font-semibold uppercase tracking-widest text-white drop-shadow">🐈‍⬛ Récord: {best}</div>}

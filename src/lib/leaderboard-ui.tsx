@@ -41,7 +41,7 @@ export function NicknameForm({ onDone }: { onDone: (p: Player) => void }) {
       />
       <input type="password" value={pw} maxLength={64} onChange={(e) => setPw(e.target.value)} placeholder="Contraseña (mínimo 6)" className={field} />
       <input type="password" value={pw2} maxLength={64} onChange={(e) => setPw2(e.target.value)} placeholder="Repite la contraseña" className={field} />
-      <div className="text-[11px] text-white/60">Con tu apodo y contraseña recuperas tu perfil si borras la app.</div>
+      <div className="text-[0.6875rem] text-white/60">Con tu apodo y contraseña recuperas tu perfil si borras la app.</div>
       {mismatch && <div className="text-xs font-bold text-red-300">Las contraseñas no son iguales</div>}
       {err && <div className="text-xs font-bold text-red-300">{err}</div>}
       <button
@@ -215,7 +215,7 @@ export function LeaderboardModal({ initialMode, initialTab = "global", onClose }
         )}
         <button
           onClick={onClose}
-          className="mt-4 w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_4px_0_rgba(0,0,0,0.3)] active:translate-y-0.5"
+          className="mt-4 w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_0.25rem_0_rgba(0,0,0,0.3)] active:translate-y-0.5"
         >
           ← Volver
         </button>
@@ -250,7 +250,7 @@ export function GameOverFriends({ mode, onOpen }: { mode: BoardMode; onOpen: () 
       ) : (
         <div className="max-h-36 overflow-y-auto">
           <Rows rows={rows.slice(0, 10)} meId={player.id} />
-          {rows.length <= 1 && <div className="mt-1 text-center text-[11px] text-white/60">Agrega amigos desde el ranking</div>}
+          {rows.length <= 1 && <div className="mt-1 text-center text-[0.6875rem] text-white/60">Agrega amigos desde el ranking</div>}
         </div>
       )}
     </div>

@@ -290,7 +290,7 @@ export function UpdatePrompt() {
           <button
             onClick={start}
             disabled={step === "downloading"}
-            className={`${btn} bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-[0_4px_0_rgb(6_78_59)]`}
+            className={`${btn} bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-[0_0.25rem_0_rgb(6_78_59)]`}
           >
             {step === "ready" ? "📲 Instalar" : step === "error" ? "🔄 Reintentar" : step === "downloading" ? "Descargando…" : "⬇️ Actualizar"}
           </button>

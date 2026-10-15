@@ -68,7 +68,7 @@ async function deletePlayerAsAdmin(target: string) {
   return error ? explain(error.message) : null;
 }
 
-const btn = "rounded-lg px-2 py-1 text-[11px] font-black text-white active:translate-y-0.5 disabled:opacity-50";
+const btn = "rounded-lg px-2 py-1 text-[0.6875rem] font-black text-white active:translate-y-0.5 disabled:opacity-50";
 
 function PlayerCard({ row, onChanged }: { row: AdminRow; onChanged: () => void }) {
   const [action, setAction] = useState<"" | "password" | "delete">("");
@@ -89,9 +89,9 @@ function PlayerCard({ row, onChanged }: { row: AdminRow; onChanged: () => void }
     <div className="rounded-xl bg-white/10 p-2 text-white">
       <div className="flex items-center gap-2">
         <span className="flex-1 truncate font-black">{row.is_admin ? "🛡️ " : ""}{row.nickname}</span>
-        <span className="text-[10px] text-white/60">🏆 {row.best_normal} · 🔥 {row.best_hard}</span>
+        <span className="text-[0.625rem] text-white/60">🏆 {row.best_normal} · 🔥 {row.best_hard}</span>
       </div>
-      <div className="text-[10px] text-white/60">
+      <div className="text-[0.625rem] text-white/60">
         {row.has_password ? "🔒 con contraseña" : "🔓 sin contraseña"} · {row.has_code ? "🔑 con código" : "sin código"} · desde {new Date(row.created_at).toLocaleDateString()}
       </div>
       <div className="mt-1 flex flex-wrap gap-1">
@@ -133,7 +133,7 @@ function PlayerCard({ row, onChanged }: { row: AdminRow; onChanged: () => void }
         </div>
       )}
       {action === "delete" && (
-        <div className="mt-2 rounded-lg bg-red-950/50 p-2 text-[11px]">
+        <div className="mt-2 rounded-lg bg-red-950/50 p-2 text-[0.6875rem]">
           ¿Borrar a <b>{row.nickname}</b>? Se pierden su usuario, récords y amigos.
           <div className="mt-1 flex gap-1">
             <button className={`${btn} bg-white/20`} onClick={() => setAction("")}>Cancelar</button>
@@ -143,7 +143,7 @@ function PlayerCard({ row, onChanged }: { row: AdminRow; onChanged: () => void }
           </div>
         </div>
       )}
-      {msg && <div className="mt-1 select-all text-center text-[11px] font-bold text-white/85">{msg}</div>}
+      {msg && <div className="mt-1 select-all text-center text-[0.6875rem] font-bold text-white/85">{msg}</div>}
     </div>
   );
 }

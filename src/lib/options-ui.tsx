@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   type Player, getPlayer, deletePlayer, syncScores,
   getRecoveryCode, recoverPlayer, formatRecoveryCode,
-  hasPassword, setPassword, loginPlayer,
+  hasPassword, setPassword, loginPlayer, backupProfile, loadFromCloud,
 } from "./leaderboard";
 import { Capacitor } from "@capacitor/core";
 import { type SaveFile, type SaveSummary, exportSave, parseSave, applySave, summarize, currentData } from "./save-data";
@@ -48,10 +48,43 @@ export function SaveDataSection() {
 
   return (
     <div className={box}>
-      <div className={title}>💾 Datos de guardado</div>
+      <div className={title}>💾 Guardar y cargar partida</div>
       {!pending ? (
         <>
           <Summary s={summarize(currentData())} />
+          {/* en la nube, con tu usuario online (la misma partida del teléfono, la web y la PS4) */}
+          {getPlayer() ? (
+            <div className="mt-2 flex gap-2">
+              <button
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true); setMsg("⏳ Guardando…");
+                  setMsg((await backupProfile()) ? "✅ Partida guardada en la nube" : "Sin conexión, intenta de nuevo");
+                  setBusy(false);
+                }}
+                className={`${btn} bg-gradient-to-b from-emerald-500 to-emerald-700`}
+              >
+                ☁️ Guardar partida
+              </button>
+              <button
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true); setMsg("⏳ Cargando…");
+                  const r = await loadFromCloud();
+                  setMsg(r.msg);
+                  setBusy(false);
+                  // recarga para que el juego lea la partida cargada
+                  if (r.ok) setTimeout(() => window.location.reload(), 700);
+                }}
+                className={`${btn} bg-gradient-to-b from-amber-500 to-orange-700`}
+              >
+                📂 Cargar partida
+              </button>
+            </div>
+          ) : (
+            <div className="mt-2 text-[0.6875rem] text-white/60">Crea tu usuario online (en Ranking) para guardar tu partida en la nube.</div>
+          )}
+          <div className="mt-3 text-[0.6875rem] font-bold text-white/60">En un archivo:</div>
           <div className="mt-2 flex gap-2">
             <button
               disabled={busy}
@@ -75,7 +108,7 @@ export function SaveDataSection() {
         <div>
           <div className="mb-1 text-sm font-bold text-white">¿Importar este guardado?</div>
           <Summary s={summarize(pending.data)} />
-          <div className="mt-1 text-[11px] text-white/60">
+          <div className="mt-1 text-[0.6875rem] text-white/60">
             Los pastelitos se reemplazan por los del archivo. Los récords y personajes se combinan: te quedas con lo mejor de ambos.
           </div>
           <div className="mt-2 flex gap-2">
@@ -135,7 +168,7 @@ export function RecoveryCodeBox() {
     <div className="mb-3 rounded-xl bg-amber-400/15 p-3">
       <div className="text-xs font-bold text-amber-200">🔑 Tu código de recuperación</div>
       <div className="my-1 select-all text-center font-mono text-xl font-black tracking-wider text-white">{code}</div>
-      <div className="text-[11px] leading-snug text-white/70">
+      <div className="text-[0.6875rem] leading-snug text-white/70">
         Guárdalo junto a tu apodo <b>{nickname}</b>. Si borras la app, con los dos recuperas tu usuario, amigos, récords, pastelitos y personajes. No se lo des a nadie.
       </div>
       <div className="mt-2 flex gap-2">

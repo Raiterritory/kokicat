@@ -3,8 +3,18 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
-/* Pantalla horizontal y baja (teléfono acostado): menús en dos columnas */
-@custom-variant short (@media (orientation: landscape) and (max-height: 540px));
+/*
+ * Menús en dos columnas: pantalla horizontal y baja (teléfono acostado) o un PC (horizontal, con mouse).
+ * En PC toda la interfaz se agranda con la pantalla (ver usePcScale), así se ve igual que en la PS4.
+ */
+@custom-variant short {
+  @media (orientation: landscape) and (max-height: 540px) {
+    @slot;
+  }
+  @media (orientation: landscape) and (hover: hover) and (pointer: fine) and (min-width: 900px) and (min-height: 541px) {
+    @slot;
+  }
+}
 
 /*
  * Design system definition.

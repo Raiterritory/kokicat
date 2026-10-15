@@ -203,6 +203,20 @@ function Game() {
     return () => evs.forEach((ev) => window.removeEventListener(ev, refreshProgress));
   }, []);
   const tazReport = useRef(0);
+  // En PC (horizontal y con mouse) la interfaz usa el diseño en dos columnas de la PS4 y se agranda
+  // con la pantalla: se diseña a 960x540 y se escala, igual que la PS4 lo lleva a 1280x720.
+  useEffect(() => {
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const apply = () => {
+      const w = window.innerWidth, h = window.innerHeight;
+      const pc = mq.matches && w > h && w >= 900 && h > 540;
+      document.documentElement.style.fontSize = pc ? `${16 * Math.min(w / 960, h / 540)}px` : "";
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    mq.addEventListener("change", apply);
+    return () => { window.removeEventListener("resize", apply); mq.removeEventListener("change", apply); };
+  }, []);
   useEffect(() => {
     void syncScores();
     const onOnline = () => void syncScores();
@@ -637,6 +651,8 @@ function Game() {
          */
         const crash = (ground: boolean) => {
           if (stateRef.current !== "playing") return;
+          // contrarreloj: caer al suelo es perder (nada de quedarse arrastrando con el escudo)
+          if (ground && modeRef.current === "time" && !inMatch) { endGame(); return; }
           const hadShield = g.powers.shield && g.powers.invuln <= 0;
           const absorbed = absorbCrash(g.powers);
           if (absorbed && hadShield) missionEvent("shieldSaves");
@@ -1194,7 +1210,7 @@ function Game() {
                 draggable={false}
                 {...modeSwipe.handlers}
                 onClick={(e) => { e.stopPropagation(); if (!modeSwipe.wasDrag()) playLogoSound(); }}
-                className="w-full max-w-[300px] short:max-w-[260px] cursor-pointer touch-none select-none drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
+                className="w-full max-w-[18.75rem] short:max-w-[16.25rem] cursor-pointer touch-none select-none drop-shadow-[0_0.5rem_1rem_rgba(0,0,0,0.5)]"
                 style={{ animation: "koki-logo-bob 2.4s ease-in-out infinite" }}
               />
               <div className="flex items-center gap-2">
@@ -1211,32 +1227,32 @@ function Game() {
               <div className="flex w-full flex-col items-center gap-4 short:w-1/2 short:gap-3">
               <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(true); }}
-                className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-10 py-4 text-2xl font-black tracking-wide text-white shadow-[0_6px_0_rgb(127_29_29),0_10px_20px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29),0_4px_10px_rgba(0,0,0,0.4)]"
+                className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-10 py-4 text-2xl font-black tracking-wide text-white shadow-[0_0.375rem_0_rgb(127_29_29),0_0.625rem_1.25rem_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(127_29_29),0_0.25rem_0.625rem_rgba(0,0,0,0.4)]"
                 style={{ textShadow: "0 2px 0 rgba(0,0,0,0.25), 0 0 2px rgba(0,0,0,0.35)" }}
               >
                 ▶ JUGAR
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setState("characters"); }}
-                className="w-full rounded-full bg-gradient-to-b from-sky-400 to-blue-600 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(30_58_138),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(30_58_138)]"
+                className="w-full rounded-full bg-gradient-to-b from-sky-400 to-blue-600 px-8 py-3 text-lg font-black text-white shadow-[0_0.3125rem_0_rgb(30_58_138),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(30_58_138)]"
               >
                 🐾 PERSONAJES
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setShowBoard(true); }}
-                className="w-full rounded-full bg-gradient-to-b from-amber-300 to-amber-500 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(146_64_14),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(146_64_14)]"
+                className="w-full rounded-full bg-gradient-to-b from-amber-300 to-amber-500 px-8 py-3 text-lg font-black text-white shadow-[0_0.3125rem_0_rgb(146_64_14),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(146_64_14)]"
               >
                 🏆 RANKING
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setShowAchievements(true); }}
-                className="w-full rounded-full bg-gradient-to-b from-fuchsia-400 to-purple-600 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(88_28_135),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(88_28_135)]"
+                className="w-full rounded-full bg-gradient-to-b from-fuchsia-400 to-purple-600 px-8 py-3 text-lg font-black text-white shadow-[0_0.3125rem_0_rgb(88_28_135),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(88_28_135)]"
               >
                 🏅 LOGROS
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setShowMissions(true); }}
-                className="relative w-full rounded-full bg-gradient-to-b from-orange-400 to-red-600 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(127_29_29),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29)]"
+                className="relative w-full rounded-full bg-gradient-to-b from-orange-400 to-red-600 px-8 py-3 text-lg font-black text-white shadow-[0_0.3125rem_0_rgb(127_29_29),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(127_29_29)]"
               >
                 📜 MISIONES
                 {claimable > 0 && (
@@ -1245,7 +1261,7 @@ function Game() {
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); kickMusic(); setShowSettings(true); }}
-                className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 px-8 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(6_78_59),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(6_78_59)]"
+                className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 px-8 py-3 text-lg font-black text-white shadow-[0_0.3125rem_0_rgb(6_78_59),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(6_78_59)]"
               >
                 🔧 OPCIONES
               </button>
@@ -1276,7 +1292,7 @@ function Game() {
                 return dailyDone ? (
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowDailyBoard(true); }}
-                    className="w-full rounded-2xl bg-gradient-to-b from-emerald-500 to-teal-700 px-6 py-3 text-left text-white shadow-[0_5px_0_rgb(19_78_74),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1"
+                    className="w-full rounded-2xl bg-gradient-to-b from-emerald-500 to-teal-700 px-6 py-3 short:py-2 text-left text-white shadow-[0_0.3125rem_0_rgb(19_78_74),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1"
                   >
                     <div className="text-lg font-black">🗓️ RETO DE HOY: LISTO</div>
                     <div className="text-xs font-bold text-white/85">{ds?.done ? `Hiciste ${ds.score} · ` : ""}Ver el ranking del día · Vuelve mañana po</div>
@@ -1284,45 +1300,45 @@ function Game() {
                 ) : (
                   <button
                     onClick={(e) => { e.stopPropagation(); setPickMode(false); startGame("daily"); }}
-                    className="w-full rounded-2xl bg-gradient-to-b from-emerald-400 to-teal-600 px-6 py-4 text-left text-white shadow-[0_5px_0_rgb(19_78_74),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(19_78_74)]"
+                    className="w-full rounded-2xl bg-gradient-to-b from-emerald-400 to-teal-600 px-6 py-4 short:py-2 text-left text-white shadow-[0_0.3125rem_0_rgb(19_78_74),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(19_78_74)]"
                   >
                     <div className="text-xl font-black">🗓️ EL RETO DE HOY</div>
                     <div className="text-xs font-bold text-white/90">{tw.icon} {tw.name}: {tw.desc}</div>
-                    <div className="text-[10px] font-bold text-white/75">Una sola partida, las mismas tuberías para todos · {dayKey()}</div>
+                    <div className="text-[0.625rem] font-bold text-white/75">Una sola partida, las mismas tuberías para todos · {dayKey()}</div>
                   </button>
                 );
               })()}
               <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(false); startGame("normal"); }}
-                className="w-full rounded-2xl bg-gradient-to-b from-red-400 to-red-600 px-6 py-4 text-left text-white shadow-[0_5px_0_rgb(127_29_29),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29)]"
+                className="w-full rounded-2xl bg-gradient-to-b from-red-400 to-red-600 px-6 py-4 short:py-2 text-left text-white shadow-[0_0.3125rem_0_rgb(127_29_29),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(127_29_29)]"
               >
                 <div className="text-xl font-black">▶ NORMAL</div>
                 <div className="text-xs font-bold text-white/85">Velocidad constante · Récord: {best}</div>
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(false); startGame("hard"); }}
-                className="w-full rounded-2xl bg-gradient-to-b from-orange-400 to-rose-700 px-6 py-4 text-left text-white shadow-[0_5px_0_rgb(124_45_18),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(124_45_18)]"
+                className="w-full rounded-2xl bg-gradient-to-b from-orange-400 to-rose-700 px-6 py-4 short:py-2 text-left text-white shadow-[0_0.3125rem_0_rgb(124_45_18),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(124_45_18)]"
               >
                 <div className="text-xl font-black">🔥 DIFÍCIL</div>
                 <div className="text-xs font-bold text-white/85">Cada vez más rápido · Récord: {bestHard}</div>
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(false); startGame("time"); }}
-                className="w-full rounded-2xl bg-gradient-to-b from-sky-400 to-blue-600 px-6 py-4 text-left text-white shadow-[0_5px_0_rgb(30_58_138),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(30_58_138)]"
+                className="w-full rounded-2xl bg-gradient-to-b from-sky-400 to-blue-600 px-6 py-4 short:py-2 text-left text-white shadow-[0_0.3125rem_0_rgb(30_58_138),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(30_58_138)]"
               >
                 <div className="text-xl font-black">⏱ CONTRARRELOJ</div>
                 <div className="text-xs font-bold text-white/85">¿Cuántos tubos pasas en 60 segundos? · Récord: {bestTime}</div>
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(false); setBoardTab("friends"); setShowBoard(true); }}
-                className="w-full rounded-2xl bg-gradient-to-b from-violet-400 to-indigo-600 px-6 py-4 text-left text-white shadow-[0_5px_0_rgb(49_46_129),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(49_46_129)]"
+                className="w-full rounded-2xl bg-gradient-to-b from-violet-400 to-indigo-600 px-6 py-4 short:py-2 text-left text-white shadow-[0_0.3125rem_0_rgb(49_46_129),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(49_46_129)]"
               >
                 <div className="text-xl font-black">⚔️ CONTRA AMIGOS</div>
                 <div className="text-xs font-bold text-white/85">En vivo · 2 o 3 jugadores · 2 o 3 rondas</div>
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(false); }}
-                className="mt-1 w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_4px_0_rgba(0,0,0,0.3)] active:translate-y-0.5"
+                className="mt-1 w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_0.25rem_0_rgba(0,0,0,0.3)] active:translate-y-0.5"
               >
                 ← Volver
               </button>
@@ -1344,7 +1360,7 @@ function Game() {
                   <button
                     key={id}
                     onClick={(e) => { e.stopPropagation(); setCharTab(id); }}
-                    className={`rounded-full px-1 py-1.5 text-[11px] font-black ${charTab === id ? "bg-white text-indigo-900" : "text-white/80"}`}
+                    className={`rounded-full px-1 py-1.5 text-[0.6875rem] font-black ${charTab === id ? "bg-white text-indigo-900" : "text-white/80"}`}
                   >
                     {icon} {label}
                   </button>
@@ -1403,17 +1419,17 @@ function Game() {
                       </div>
                       {isUnlocked ? (
                         isSelected ? (
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-white">Elegido</div>
+                          <div className="text-[0.625rem] font-bold uppercase tracking-wider text-white">Elegido</div>
                         ) : (
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-white/70">Tocar</div>
+                          <div className="text-[0.625rem] font-bold uppercase tracking-wider text-white/70">Tocar</div>
                         )
                       ) : (
                         c.achievement ? (
-                          <div className="rounded-full bg-amber-400/30 px-2 py-0.5 text-center text-[10px] font-black leading-tight text-amber-100">
+                          <div className="rounded-full bg-amber-400/30 px-2 py-0.5 text-center text-[0.625rem] font-black leading-tight text-amber-100">
                             🏅 Logro: {ACHIEVEMENTS.find((a) => a.id === c.achievement)?.name}
                           </div>
                         ) : (
-                        <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black ${canBuy ? "bg-pink-500 text-white" : "bg-white/20 text-white/60"}`}>
+                        <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-black ${canBuy ? "bg-pink-500 text-white" : "bg-white/20 text-white/60"}`}>
                           🧁 {c.price}
                         </div>
                         )
@@ -1425,7 +1441,7 @@ function Game() {
               )}
               <button
                 onClick={(e) => { e.stopPropagation(); setCharTab("chars"); setState("menu"); }}
-                className="mt-5 w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_4px_0_rgba(0,0,0,0.3)] active:translate-y-0.5"
+                className="mt-5 w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_0.25rem_0_rgba(0,0,0,0.3)] active:translate-y-0.5"
               >
                 ← Volver
               </button>
@@ -1445,25 +1461,25 @@ function Game() {
         {state === "over" && !mp.match && (
           <Overlay>
             <div className="w-full max-w-sm rounded-3xl bg-gradient-to-b from-white to-slate-100 px-6 py-6 text-center shadow-2xl border-4 border-white/60">
-              <div className="text-3xl font-black text-red-600 drop-shadow-sm">{mode === "time" ? "⏱ ¡Se acabó el tiempo!" : mode === "daily" ? "🗓️ ¡Reto de hoy listo!" : "¡Game Over!"}</div>
+              <div className="text-3xl font-black text-red-600 drop-shadow-sm">{mode === "time" && gameRef.current.timeLeft <= 0 ? "⏱ ¡Se acabó el tiempo!" : mode === "daily" ? "🗓️ ¡Reto de hoy listo!" : "¡Game Over!"}</div>
               <div className="mt-4 grid grid-cols-3 gap-2">
                 <div className="rounded-2xl bg-slate-100 p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Score</div>
+                  <div className="text-[0.625rem] font-bold uppercase tracking-wider text-slate-500">Score</div>
                   <div className="text-2xl font-black text-slate-800">{score}</div>
                 </div>
                 {mode === "daily" ? (
                   <div className="rounded-2xl bg-emerald-100 p-3">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Racha</div>
+                    <div className="text-[0.625rem] font-bold uppercase tracking-wider text-emerald-700">Racha</div>
                     <div className="text-2xl font-black text-emerald-700">🔥{streakDays}</div>
                   </div>
                 ) : (
                 <div className="rounded-2xl bg-amber-100 p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Mejor {mode === "hard" ? "🔥" : mode === "time" ? "⏱" : "🏆"}</div>
+                  <div className="text-[0.625rem] font-bold uppercase tracking-wider text-amber-700">Mejor {mode === "hard" ? "🔥" : mode === "time" ? "⏱" : "🏆"}</div>
                   <div className="text-2xl font-black text-amber-700">{mode === "hard" ? bestHard : mode === "time" ? bestTime : best}</div>
                 </div>
                 )}
                 <div className="rounded-2xl bg-pink-100 p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-pink-700">🧁</div>
+                  <div className="text-[0.625rem] font-bold uppercase tracking-wider text-pink-700">🧁</div>
                   <div className="text-2xl font-black text-pink-700">+{gameRef.current.runCoins}</div>
                 </div>
               </div>
@@ -1479,14 +1495,14 @@ function Game() {
                   <button
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => { e.stopPropagation(); setShowDailyBoard(true); }}
-                    className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-teal-600 px-6 py-4 text-xl font-black text-white shadow-[0_5px_0_rgb(19_78_74)] active:translate-y-1"
+                    className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-teal-600 px-6 py-4 text-xl font-black text-white shadow-[0_0.3125rem_0_rgb(19_78_74)] active:translate-y-1"
                   >
                     🗓️ RANKING DE HOY
                   </button>
                 ) : (
                 <button
                   onClick={(e) => { e.stopPropagation(); startGame(); }}
-                  className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-6 py-4 text-xl font-black text-white shadow-[0_5px_0_rgb(127_29_29),0_8px_16px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29)]"
+                  className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-6 py-4 text-xl font-black text-white shadow-[0_0.3125rem_0_rgb(127_29_29),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(127_29_29)]"
                 >
                   🔄 REINTENTAR
                 </button>
@@ -1494,7 +1510,7 @@ function Game() {
                 <button
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); goToMenu(); }}
-                  className="w-full rounded-full bg-gradient-to-b from-slate-200 to-slate-400 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_4px_0_rgb(71_85_105)] active:translate-y-1 active:shadow-[0_2px_0_rgb(71_85_105)]"
+                  className="w-full rounded-full bg-gradient-to-b from-slate-200 to-slate-400 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_0.25rem_0_rgb(71_85_105)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(71_85_105)]"
                 >
                   🏠 MENÚ
                 </button>
@@ -1680,7 +1696,7 @@ function Game() {
               </div>
               <button
                 onClick={() => setShowSettings(false)}
-                className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 px-6 py-3 text-lg font-black text-white shadow-[0_4px_0_rgb(6_78_59)] active:translate-y-0.5"
+                className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 px-6 py-3 text-lg font-black text-white shadow-[0_0.25rem_0_rgb(6_78_59)] active:translate-y-0.5"
               >
                 Listo
               </button>
@@ -1688,7 +1704,7 @@ function Game() {
               <div className="mt-5 flex items-center gap-3 rounded-2xl bg-black/30 px-3 py-2">
                 <img src={claudeIcon} alt="Claude" className="h-10 w-10 rounded-xl" />
                 <div className="flex-1 text-xs font-semibold leading-tight text-white/85">
-                  <div className="text-[10px] uppercase tracking-widest text-white/60">Créditos</div>
+                  <div className="text-[0.625rem] uppercase tracking-widest text-white/60">Créditos</div>
                   Claude y la mente de la Ramona
                 </div>
                 <img src={ramonaImg} alt="La Ramona" className="h-16 w-auto" />

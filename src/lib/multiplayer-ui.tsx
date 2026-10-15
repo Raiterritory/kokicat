@@ -8,8 +8,8 @@ import {
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 const card = "w-full max-w-sm rounded-3xl border-2 border-white/10 bg-gradient-to-b from-indigo-900 to-slate-900 p-5 text-white shadow-2xl";
-const primary = "w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-6 py-3 text-lg font-black text-white shadow-[0_5px_0_rgb(127_29_29)] active:translate-y-1 active:shadow-[0_2px_0_rgb(127_29_29)] disabled:opacity-50";
-const secondary = "w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_4px_0_rgba(0,0,0,0.3)] active:translate-y-0.5";
+const primary = "w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-6 py-3 text-lg font-black text-white shadow-[0_0.3125rem_0_rgb(127_29_29)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(127_29_29)] disabled:opacity-50";
+const secondary = "w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_0.25rem_0_rgba(0,0,0,0.3)] active:translate-y-0.5";
 
 /**
  * Friends-tab section: pick 1-2 friends, rounds, and send the challenge.
@@ -45,11 +45,11 @@ export function ChallengeFriends({ friends, mode, onSent }: { friends: FriendRow
               >
                 <span>{picked.includes(f.id) ? "✅" : isOn(f.id) ? "🟢" : "⚪"}</span>
                 <span className="flex-1 truncate">{f.nickname}</span>
-                <span className="text-[10px] font-semibold opacity-70">{isOn(f.id) ? "conectado" : "le llegará un aviso"}</span>
+                <span className="text-[0.625rem] font-semibold opacity-70">{isOn(f.id) ? "conectado" : "le llegará un aviso"}</span>
               </button>
             ))}
           </div>
-          <div className="mt-1 text-[11px] text-white/50">Elige 1 amigo (2 jugadores) o 2 amigos (3 jugadores)</div>
+          <div className="mt-1 text-[0.6875rem] text-white/50">Elige 1 amigo (2 jugadores) o 2 amigos (3 jugadores)</div>
           <div className="mt-2 flex items-center gap-2">
             <span className="text-xs font-bold text-white/70">Rondas</span>
             <button className={btn(rounds === 2)} onClick={() => setRounds(2)}>2</button>
@@ -142,7 +142,7 @@ export function MultiplayerLayer({ onExit }: { onExit: () => void }) {
                   <div key={t.id} className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 font-bold">
                     <span className="flex-1 truncate">{t.nickname}</span>
                     {outgoing.replies[t.id] === "pending" && !online.includes(t.id) && (
-                      <span className="text-[10px] font-semibold text-white/60">📲 avisado</span>
+                      <span className="text-[0.625rem] font-semibold text-white/60">📲 avisado</span>
                     )}
                     <span>{outgoing.replies[t.id] === "accepted" ? "✅" : outgoing.replies[t.id] === "declined" ? "❌" : outgoing.replies[t.id] === "expired" ? "⌛" : "⏳"}</span>
                   </div>
@@ -170,7 +170,7 @@ export function MultiplayerLayer({ onExit }: { onExit: () => void }) {
       )}
 
       {m && m.phase === "playing" && !waitingOthers && (
-        <div className="pointer-events-none absolute left-1/2 top-[100px] z-10 -translate-x-1/2 rounded-full bg-black/35 px-3 py-1 text-xs font-bold text-white/85">
+        <div className="pointer-events-none absolute left-1/2 top-[6.25rem] z-10 -translate-x-1/2 rounded-full bg-black/35 px-3 py-1 text-xs font-bold text-white/85">
           Ronda {m.round}/{m.rounds} · {activePlayers(m).map((p) => `${p.id === m.me.id ? "Tú" : p.nickname} ${"⭐".repeat(m.wins[p.id] ?? 0)}`).join(" · ")}
         </div>
       )}

@@ -176,7 +176,7 @@ export function AchievementToast() {
   if (!a) return null;
   return (
     <div className="pointer-events-none absolute left-1/2 top-16 z-[80] w-[min(92vw,360px)] -translate-x-1/2 animate-bounce rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-3 text-white shadow-2xl ring-2 ring-white/70">
-      <div className="text-[10px] font-black uppercase tracking-widest text-white/85">{a.kicker ?? "🏅 ¡Logro desbloqueado!"}</div>
+      <div className="text-[0.625rem] font-black uppercase tracking-widest text-white/85">{a.kicker ?? "🏅 ¡Logro desbloqueado!"}</div>
       <div className="flex items-center gap-2">
         <span className="text-3xl">{a.icon}</span>
         <div>
@@ -214,14 +214,14 @@ export function AchievementsModal({ onClose }: { onClose: () => void }) {
                 <span className={`text-2xl ${got ? "" : "opacity-40 grayscale"}`}>{a.icon}</span>
                 <div className="min-w-0 flex-1">
                   <div className={`text-sm font-black ${got ? "text-amber-200" : "text-white/80"}`}>{a.name}</div>
-                  <div className="text-[11px] text-white/60">{a.desc}</div>
-                  {rewardOf(a.id) && <div className="text-[11px] font-black text-pink-300">🎁 Premio: {rewardOf(a.id)!.name}</div>}
+                  <div className="text-[0.6875rem] text-white/60">{a.desc}</div>
+                  {rewardOf(a.id) && <div className="text-[0.6875rem] font-black text-pink-300">🎁 Premio: {rewardOf(a.id)!.name}</div>}
                   {!got && target > 1 && (
                     <div className="mt-1 flex items-center gap-2">
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
                         <div className="h-full rounded-full bg-sky-400" style={{ width: `${(cur / target) * 100}%` }} />
                       </div>
-                      <span className="text-[10px] font-bold text-white/50">{cur}/{target}</span>
+                      <span className="text-[0.625rem] font-bold text-white/50">{cur}/{target}</span>
                     </div>
                   )}
                 </div>
@@ -230,7 +230,7 @@ export function AchievementsModal({ onClose }: { onClose: () => void }) {
             );
           })}
         </div>
-        <button onClick={onClose} className="mt-4 w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_4px_0_rgba(0,0,0,0.3)] active:translate-y-0.5">
+        <button onClick={onClose} className="mt-4 w-full rounded-full bg-white/90 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_0.25rem_0_rgba(0,0,0,0.3)] active:translate-y-0.5">
           ← Volver
         </button>
       </div>
