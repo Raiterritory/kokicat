@@ -5,8 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { ensureNotifyPermission } from "./notify";
 
-// repo público solo con las descargas (el del código es privado)
-const REPO = "Raiterritory/kokicat-descargas";
+const REPO = "Raiterritory/kokicat";
 const LATER_KEY = "koki-update-later";
 const LATER_MS = 12 * 60 * 60 * 1000;
 
