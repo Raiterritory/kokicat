@@ -106,6 +106,13 @@
       "when": 1791940433482,
       "tag": "0017_0017_daily_challenge",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792276821847,
+      "tag": "0018_hide_players_from_ranking",
+      "breakpoints": true
     }
   ]
 }

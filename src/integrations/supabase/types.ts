@@ -85,6 +85,7 @@ export type Database = {
           best_normal: number
           best_taz: number
           created_at: string
+          hidden_from_ranking: boolean
           id: string
           is_admin: boolean
           login_fails: number
@@ -102,6 +103,7 @@ export type Database = {
           best_normal?: number
           best_taz?: number
           created_at?: string
+          hidden_from_ranking?: boolean
           id?: string
           is_admin?: boolean
           login_fails?: number
@@ -119,6 +121,7 @@ export type Database = {
           best_normal?: number
           best_taz?: number
           created_at?: string
+          hidden_from_ranking?: boolean
           id?: string
           is_admin?: boolean
           login_fails?: number
