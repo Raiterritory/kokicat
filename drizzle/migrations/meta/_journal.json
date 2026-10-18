@@ -120,6 +120,13 @@
       "when": 1792276949921,
       "tag": "0019_hidden_player_sees_own_scores",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792348404460,
+      "tag": "0020_namu_new_player_visibility",
+      "breakpoints": true
     }
   ]
 }

@@ -218,6 +218,20 @@ export type Database = {
           skin: string
         }[]
       }
+      daily_leaderboard_for_player: {
+        Args: {
+          p_day: string
+          p_id?: string
+          p_limit?: number
+          p_secret?: string
+        }
+        Returns: {
+          id: string
+          nickname: string
+          score: number
+          skin: string
+        }[]
+      }
       delete_player: {
         Args: { p_id: string; p_secret: string }
         Returns: undefined
@@ -237,6 +251,20 @@ export type Database = {
       }
       global_leaderboard: {
         Args: { p_limit?: number; p_mode: string }
+        Returns: {
+          id: string
+          nickname: string
+          score: number
+          skin: string
+        }[]
+      }
+      global_leaderboard_for_player: {
+        Args: {
+          p_id?: string
+          p_limit?: number
+          p_mode: string
+          p_secret?: string
+        }
         Returns: {
           id: string
           nickname: string
@@ -264,6 +292,18 @@ export type Database = {
           nickname: string
           status: string
         }[]
+      }
+      namu_visible_to_viewer: {
+        Args: {
+          is_self: boolean
+          viewer_created_at: string
+          viewer_nickname: string
+        }
+        Returns: boolean
+      }
+      player_visible_to_viewer: {
+        Args: { p_target: string; p_viewer: string }
+        Returns: boolean
       }
       recover_player: {
         Args: { p_code: string; p_nick: string }
