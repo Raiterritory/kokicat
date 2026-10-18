@@ -57,14 +57,6 @@ export function compareVersions(a: string, b: string) {
   return 0;
 }
 
-/** Release notes as plain lines: only the bullet points, without markdown symbols. */
-function notesFrom(body: string) {
-  return body
-    .split(/\r?\n/)
-    .filter((l) => /^\s*[-*]\s+/.test(l))
-    .map((l) => l.replace(/^\s*[-*]\s+/, "").replace(/\*\*/g, "").trim())
-    .slice(0, 12);
-}
 
 export type LookupResult =
   | { status: "update"; info: UpdateInfo }
@@ -94,7 +86,8 @@ export async function lookupUpdate(ignoreLater = false): Promise<LookupResult> {
       const later = JSON.parse(localStorage.getItem(LATER_KEY) || "null") as { v: string; t: number } | null;
       if (!ignoreLater && later && later.v === latest && Date.now() - later.t < LATER_MS) return { status: "latest", installed };
     } catch { /* sin dato */ }
-    return { status: "update", info: { version: latest, notes: notesFrom(rel.body ?? ""), apkUrl: apk.browser_download_url, size: apk.size } };
+    // sin notas de la versión: la ventana solo avisa que hay una nueva
+    return { status: "update", info: { version: latest, notes: [], apkUrl: apk.browser_download_url, size: apk.size } };
   } catch {
     return { status: "error" }; // sin internet: se revisa la próxima vez
   }
@@ -263,11 +256,6 @@ export function UpdatePrompt() {
         <div className="text-center text-4xl">🎉</div>
         <h2 className="text-center text-2xl font-black">¡Nueva versión {info.version}!</h2>
         <div className="mb-3 text-center text-xs font-bold text-white/60">Descarga de {mb} MB · tus datos se mantienen</div>
-        {info.notes.length > 0 && (
-          <ul className="mb-3 flex-1 space-y-1 overflow-y-auto rounded-2xl bg-black/30 p-3 text-xs leading-snug text-white/85">
-            {info.notes.map((n) => <li key={n}>{n}</li>)}
-          </ul>
-        )}
 
         {step === "downloading" && (
           <div className="mb-3">
