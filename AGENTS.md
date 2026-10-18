@@ -11,3 +11,4 @@
 
 - Keep boss behavior and character-skin rendering in focused modules under `src/lib`; this keeps the canvas route maintainable for APK export.
 - Keep the offline APK bundle generated through `bun run build:static` with Capacitor reading `dist-static`; this guarantees local media is packaged.
+- Enforce per-viewer player visibility in database RPCs using validated player credentials and a persisted cutoff; never trust client-supplied nicknames or registration dates.

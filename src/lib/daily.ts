@@ -101,7 +101,10 @@ export async function sendDaily() {
 
 /** Ranking de hoy. "missing": el servidor aún no tiene el reto (falta la migración 0017). */
 export async function dailyBoard(): Promise<BoardRow[] | "missing" | null> {
-  const { data, error } = await rpc("daily_leaderboard", { p_day: dayKey(), p_limit: 50 });
+  const p = getPlayer();
+  const { data, error } = await rpc("daily_leaderboard_for_player", {
+    p_day: dayKey(), p_limit: 50, p_id: p?.id ?? null, p_secret: p?.secret ?? null,
+  });
   if (error) return missingFn(error.message) ? "missing" : null;
   return (data as BoardRow[]) ?? [];
 }
