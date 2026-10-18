@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-async function call(name: string, args: Record<string, unknown>) {
+async function call(name, args) {
   const url = process.env.VITE_SUPABASE_URL;
   const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) throw new Error("Missing backend test configuration");
@@ -11,7 +11,7 @@ async function call(name: string, args: Record<string, unknown>) {
   return { ok: response.ok, data: await response.json() };
 }
 
-async function visible(nickname: string | null, created: string | null, self = false) {
+async function visible(nickname, created, self = false) {
   const result = await call("namu_visible_to_viewer", {
     viewer_nickname: nickname, viewer_created_at: created, is_self: self,
   });
@@ -39,7 +39,7 @@ test("Namu retains self visibility", async () => {
 test("anonymous viewers cannot see Namu in global rankings", async () => {
   const result = await call("global_leaderboard_for_player", { p_mode: "normal", p_limit: 100 });
   expect(result.ok).toBe(true);
-  expect(result.data.some((row: { nickname: string }) => row.nickname.toLowerCase() === "namu")).toBe(false);
+  expect(result.data.some((row) => row.nickname.toLowerCase() === "namu")).toBe(false);
 });
 test("a forged viewer identity is rejected", async () => {
   const result = await call("global_leaderboard_for_player", {
