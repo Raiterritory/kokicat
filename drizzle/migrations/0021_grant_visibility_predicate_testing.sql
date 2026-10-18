@@ -1,0 +1,2 @@
+GRANT EXECUTE ON FUNCTION public.namu_visible_to_viewer(text,timestamptz,boolean) TO anon,authenticated,service_role;
+COMMENT ON FUNCTION public.namu_visible_to_viewer(text,timestamptz,boolean) IS 'Pure visibility predicate for regression tests. Authenticated ranking RPCs obtain the nickname and creation time from the verified viewer row, never from these caller-supplied values.';

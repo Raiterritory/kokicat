@@ -127,6 +127,13 @@
       "when": 1792348404460,
       "tag": "0020_namu_new_player_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792348437623,
+      "tag": "0021_grant_visibility_predicate_testing",
+      "breakpoints": true
     }
   ]
 }
