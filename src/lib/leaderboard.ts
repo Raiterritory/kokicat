@@ -269,7 +269,10 @@ export async function syncScoresExact(): Promise<"exact" | "maxOnly" | "error" |
 }
 
 export async function globalBoard(mode: BoardMode): Promise<BoardRow[] | null> {
-  const { data, error } = await supabase.rpc("global_leaderboard", { p_mode: mode, p_limit: 50 });
+  const p = getPlayer();
+  const { data, error } = await rpc("global_leaderboard_for_player", {
+    p_mode: mode, p_limit: 50, p_id: p?.id ?? null, p_secret: p?.secret ?? null,
+  });
   return error ? null : (data as BoardRow[]);
 }
 
