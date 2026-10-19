@@ -55,7 +55,7 @@ export const CHARACTERS: Character[] = [
   { id: "raton-patiperro", name: "Ratón Patiperro", url: ratonAsset.url, price: 0, base: "raton", fx: "arena", achievement: "missions-5" },
   { id: "bola-cuatica", name: "Bola Cuática", url: bolaNievePng, price: 0, base: "bola-nieve", fx: "aurora", achievement: "daily-10" },
   // el sprite de Koki de la versión de Game Boy Color: el reto más difícil
-  { id: "koki-pixelado", name: "Koki Pixelado", url: kokiPixeladoPng, price: 0, base: "koki", achievement: "hard-64" },
+  { id: "koki-pixelado", name: "Koki Pixelado", url: kokiPixeladoPng, price: 0, base: "koki", achievement: "hard-500" },
 ];
 
 export const CHAR_BY_ID: Record<string, Character> = Object.fromEntries(

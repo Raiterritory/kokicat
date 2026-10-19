@@ -335,11 +335,14 @@ function Game() {
     setSfxVol(getSfxVolume());
 
     for (const c of CHARACTERS) {
-      if (imgCacheRef.current[c.base]) continue;
+      /* una imagen por personaje base; las skins con dibujo propio (Koki Pixelado) van aparte, con su id */
+      const own = CHAR_BY_ID[c.base] && CHAR_BY_ID[c.base].url !== c.url;
+      const key = own ? `@${c.id}` : c.base;
+      if (imgCacheRef.current[key]) continue;
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.src = c.url;
-      imgCacheRef.current[c.base] = img;
+      imgCacheRef.current[key] = img;
     }
     const coinImg = new Image();
     coinImg.src = pastelitoImg;
@@ -928,7 +931,7 @@ function Game() {
           color: Math.random() < 0.5 ? "#ffffff" : "#9be7ff", kind: "star",
         });
       }
-      const img = imgCacheRef.current[selChar?.base ?? "koki"] || imgCacheRef.current["koki"];
+      const img = (selChar && imgCacheRef.current[`@${selChar.id}`]) || imgCacheRef.current[selChar?.base ?? "koki"] || imgCacheRef.current["koki"];
       if (img && img.complete) {
         const flapPulse = g.flap;
         const idleFlutter = Math.sin(g.frame * 0.35) * 0.06;
