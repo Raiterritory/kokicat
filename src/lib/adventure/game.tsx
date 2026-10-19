@@ -12,6 +12,9 @@ import { playFlap, playMeow } from "@/lib/sounds";
 import {
   newWorld,
   stepWorld,
+  saveOf,
+  loadWorld,
+  type Save,
   nearby,
   PIGEONS_GOAL,
   nearSpot,
@@ -26,6 +29,32 @@ import { paintMap, paintSprites, paintCake } from "./art";
 
 /* los que no tienen foto (la Tía y el Quiltro) usan su dibujo agrandado */
 const PIXEL_FACES: Line["who"][] = ["tia", "quiltro"];
+/* el avance, guardado en este aparato */
+const SAVE_KEY = "koki-adventure";
+function readSave(): Save | null {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    return raw ? (JSON.parse(raw) as Save) : null;
+  } catch {
+    return null;
+  }
+}
+function writeSave(wd: World) {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(saveOf(wd)));
+  } catch {
+    /* sin almacenamiento (modo privado): se juega igual, sin guardar */
+  }
+}
+const QUEST_NAMES = [
+  "Los pastelitos de Gufi",
+  "Pilla al Taz",
+  "Las escondidas",
+  "La feria del domingo",
+];
+/* en qué encargo va una partida guardada (para el título) */
+const questName = (q: number) =>
+  q >= 10 ? "Todos los encargos cumplidos" : QUEST_NAMES[q < 2 ? 0 : q < 5 ? 1 : q < 7 ? 2 : 3];
 const VW = 240,
   VH = 160; /* la pantalla, en puntos de pixel art (se agranda sin suavizar) */
 const NAMES: Record<Line["who"], string> = {
@@ -53,6 +82,8 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
   const keys = useRef<Pad>({ up: false, down: false, left: false, right: false, act: false });
   const touch = useRef<Pad>({ up: false, down: false, left: false, right: false, act: false });
   const [screen, setScreen] = useState<"title" | "playing">("title");
+  const [saved, setSaved] = useState<Save | null>(null);
+  useEffect(() => setSaved(readSave()), []);
   /* lo que muestra la interfaz (se copia del mundo cuando cambia) */
   const [pixelFaces, setPixelFaces] = useState<Partial<Record<Line["who"], string>>>({});
   const [ui, setUi] = useState({
@@ -129,7 +160,10 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
         const act = pad.act && !prevAct;
         prevAct = pad.act;
         const before = `${!!wd.talk}${wd.page}${wd.quest}${wd.found}${wd.hideRound}${wd.scared}`;
+        const was = `${wd.quest}${wd.map}`;
         stepWorld(wd, pad, act);
+        /* se guarda al avanzar en la historia o cambiar de lugar, y cada 5 segundos */
+        if (`${wd.quest}${wd.map}` !== was || wd.frame % 300 === 0) writeSave(wd);
         for (const ev of wd.events) {
           if (ev === "cake" || ev === "found" || ev === "pigeon") playFlap();
           else if (ev === "done" || ev === "quest" || ev === "caught") playMeow();
@@ -271,9 +305,19 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
     return () => cancelAnimationFrame(raf);
   }, [screen]);
 
-  const start = () => {
-    worldRef.current = newWorld();
-    setUi({ talk: null, page: 0, quest: 0, found: 0, seek: 0, scared: 0, done: 0 });
+  const start = (sv: Save | null) => {
+    const wd = sv ? loadWorld(sv) : newWorld();
+    worldRef.current = wd;
+    writeSave(wd);
+    setUi({
+      talk: null,
+      page: 0,
+      quest: wd.quest,
+      found: wd.found,
+      seek: wd.hideRound,
+      scared: wd.scared,
+      done: 0,
+    });
     setScreen("playing");
   };
   const hold = (key: keyof Pad) => ({
@@ -481,17 +525,29 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
               className="w-[68%] max-w-[620px] drop-shadow-2xl"
             />
             <div className="text-[clamp(12px,2.4vw,20px)] opacity-90">
-              Encargo 1: los pastelitos de Gufi
+              {saved ? `Vas en: ${questName(saved.quest)}` : "Encargo 1: los pastelitos de Gufi"}
             </div>
             <div className="text-[clamp(10px,1.8vw,15px)] opacity-75">
               Camina con la cruceta o las flechas · habla con A o espacio
             </div>
             <div className="flex gap-3">
+              {saved && (
+                <button
+                  className="rounded bg-[#ffe14d] text-[#1a1030] px-8 py-2 text-xl"
+                  onClick={() => start(saved)}
+                >
+                  ▶ CONTINUAR
+                </button>
+              )}
               <button
-                className="rounded bg-[#ffe14d] text-[#1a1030] px-8 py-2 text-xl"
-                onClick={start}
+                className={`rounded px-8 py-2 text-xl ${saved ? "bg-white/20" : "bg-[#ffe14d] text-[#1a1030]"}`}
+                onClick={() => {
+                  if (saved && !window.confirm("¿Empezar de nuevo? Se pierde la partida guardada."))
+                    return;
+                  start(null);
+                }}
               >
-                ▶ JUGAR
+                {saved ? "✨ NUEVA PARTIDA" : "▶ JUGAR"}
               </button>
               {onExit && (
                 <button className="rounded bg-white/20 px-6 py-2 text-xl" onClick={onExit}>

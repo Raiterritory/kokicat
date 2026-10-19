@@ -2,7 +2,17 @@
 // cumple el encargo de Gufi: hablar con Gufi, juntar los dos pastelitos escondidos, sacarle el tercero al
 // Taz y volver donde Gufi.
 import { expect, test } from "bun:test";
-import { newWorld, stepWorld, nearby, nearSpot, SPOTS, TILE, PIGEONS_GOAL } from "./world";
+import {
+  newWorld,
+  stepWorld,
+  nearby,
+  nearSpot,
+  SPOTS,
+  TILE,
+  PIGEONS_GOAL,
+  saveOf,
+  loadWorld,
+} from "./world";
 
 const SOLID = new Set(["b", "w", "n", "T", "H", "s", "F", "B", "S"]);
 /* el camino más corto (por bloques) hasta un punto, esquivando lo sólido */
@@ -209,4 +219,33 @@ test("el encargo de Gufi se puede cumplir", () => {
   /* y de vuelta al barrio por la otra salida */
   walkTo(wd, 0, 9);
   expect(wd.map).toBe("barrio");
+});
+
+test("el avance se guarda y se vuelve a cargar", () => {
+  const wd = newWorld();
+  const [gx, gy] = tileOf("gufi", wd);
+  walkTo(wd, gx - 1, gy);
+  talk(wd);
+  const c = wd.cakes[0];
+  walkTo(wd, Math.floor(c.x / TILE), Math.floor(c.y / TILE));
+  expect(wd.found).toBe(1);
+  /* como lo guarda el juego: a texto y de vuelta */
+  const back = loadWorld(JSON.parse(JSON.stringify(saveOf(wd))));
+  expect(back.quest).toBe(1);
+  expect(back.found).toBe(1);
+  expect(back.cakes[0].taken).toBe(true);
+  expect(back.cakes[1].taken).toBe(false);
+  expect(Math.round(back.x)).toBe(Math.round(wd.x));
+  /* jugando a las escondidas: el Ratón se vuelve a esconder */
+  const hidden = loadWorld({ ...saveOf(wd), quest: 6, hideRound: 2 });
+  expect(hidden.npcs.find((n) => n.who === "raton").hidden).toBe(true);
+  expect(hidden.hideSpot).toBeGreaterThanOrEqual(0);
+  expect(hidden.hideRound).toBe(2);
+  /* en la plaza */
+  const plaza = loadWorld({ ...saveOf(wd), quest: 8, map: "plaza", x: 100, y: 100, scared: 4 });
+  expect(plaza.map).toBe("plaza");
+  expect(plaza.ground[9][0]).toBe("e");
+  expect(plaza.scared).toBe(4);
+  /* un guardado roto no rompe nada: se empieza de cero */
+  expect(loadWorld({ v: 9 }).quest).toBe(0);
 });

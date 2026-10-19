@@ -257,6 +257,70 @@ export function newWorld(): World {
   return wd;
 }
 
+/*
+ * el avance guardado: en qué encargo vas, lo que juntaste y dónde está Koki. Lo que se mueve (el Taz
+ * arrancando, las palomas, el Ratón escondido) se arma de nuevo al volver.
+ */
+export type Save = {
+  v: 1;
+  quest: number;
+  map: string;
+  x: number;
+  y: number;
+  face: -1 | 1;
+  found: number;
+  cakes: boolean[];
+  tazGave: boolean;
+  tazAsked: number;
+  hideRound: number;
+  scared: number;
+};
+export function saveOf(wd: World): Save {
+  return {
+    v: 1,
+    quest: wd.quest,
+    map: wd.map,
+    x: Math.round(wd.x),
+    y: Math.round(wd.y),
+    face: wd.face,
+    found: wd.found,
+    cakes: wd.cakes.map((c) => c.taken),
+    tazGave: wd.tazGave,
+    tazAsked: wd.tazAsked,
+    hideRound: wd.hideRound,
+    scared: wd.scared,
+  };
+}
+export function loadWorld(sv: Save): World {
+  const wd = newWorld();
+  if (!sv || sv.v !== 1 || !MAPS[sv.map]) return wd;
+  wd.quest = sv.quest;
+  wd.map = sv.map;
+  wd.ground = wd.grounds[sv.map];
+  wd.x = sv.x;
+  wd.y = sv.y;
+  wd.face = sv.face;
+  wd.found = sv.found;
+  sv.cakes.forEach((t, i) => {
+    if (wd.cakes[i]) wd.cakes[i].taken = t;
+  });
+  wd.tazGave = sv.tazGave;
+  wd.tazAsked = sv.tazAsked;
+  wd.hideRound = sv.hideRound;
+  wd.scared = sv.scared;
+  /* el Taz que te seguía aparece a tu lado; el Ratón se vuelve a esconder */
+  if (wd.quest === 4) {
+    if (wd.map !== "barrio") wd.quest = 3;
+    else {
+      const t = tazOf(wd);
+      t.x = wd.x;
+      t.y = wd.y;
+    }
+  }
+  if (wd.quest === 6) hide(wd);
+  return wd;
+}
+
 /* la salida del barrio a la plaza está tapada por un arbusto hasta que el Ratón cuenta su secreto */
 export const exitOpen = (wd: World) => wd.map !== "barrio" || wd.quest >= 7;
 const solidAt = (wd: World, px: number, py: number) => {
