@@ -53,9 +53,10 @@ import { useModeSwipe } from "@/lib/mode-swipe";
 import { useGamepad } from "@/lib/gamepad";
 import {
   playFlap, playMeow, playLogoSound, playBossStart,
-  startMusic, setMusicVolume, setSfxVolume,
+  startMusic, stopMusic, setMusicVolume, setSfxVolume,
   getMusicVolume, getSfxVolume,
 } from "@/lib/sounds";
+import { webIsOpen } from "@/lib/web-hours";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -68,8 +69,28 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Game,
+  component: WebHoursGate,
 });
+
+// La web publicada se "duerme" de 21:00 a 10:00 (hora de Chile) sin avisos: solo se ve
+// una pantalla de un color. La app de Android juega siempre (ver src/lib/web-hours.ts).
+function WebHoursGate() {
+  // El servidor siempre renderiza el juego; el cliente decide apenas monta.
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    const apply = () => setOpen(webIsOpen());
+    apply();
+    const t = setInterval(apply, 30000);
+    return () => clearInterval(t);
+  }, []);
+  // Fuera del horario la pantalla queda en silencio: se detiene la música en el momento del cierre.
+  useEffect(() => {
+    if (!open) stopMusic();
+  }, [open]);
+  if (open) return <Game />;
+  // Sin avisos ni texto: solo una pantalla de un color hasta que vuelve a abrir.
+  return <div style={{ position: "fixed", inset: 0, background: "#0d1226" }} />;
+}
 
 
 // Fisica estilo Flappy Bird: gravedad constante, impulso fijo, sin drag
