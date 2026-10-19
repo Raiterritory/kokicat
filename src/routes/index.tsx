@@ -56,6 +56,7 @@ import {
   startMusic, setMusicVolume, setSfxVolume,
   getMusicVolume, getSfxVolume,
 } from "@/lib/sounds";
+import { webIsOpen } from "@/lib/web-hours";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -71,29 +72,15 @@ export const Route = createFileRoute("/")({
   component: WebHoursGate,
 });
 
-// Horario de la versión web (hora de Chile): abierta de 10:00 a 21:00.
-// Fuera de ese rango se muestra solo una pantalla de un color, sin ningún aviso.
-const WEB_OPEN_HOUR = 10;
-const WEB_CLOSE_HOUR = 21;
-function chileHour(): number {
-  try {
-    return Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Santiago", hour: "numeric", hour12: false }).format(Date.now())) % 24;
-  } catch {
-    return new Date().getHours();
-  }
-}
-const webIsOpen = () => {
-  // La app de Android (APK) no tiene horario: solo la versión web.
-  const cap = (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  if (cap?.isNativePlatform?.()) return true;
-  const h = chileHour();
-  return h >= WEB_OPEN_HOUR && h < WEB_CLOSE_HOUR;
-};
-
+// La web publicada se "duerme" de 21:00 a 10:00 (hora de Chile) sin avisos: solo se ve
+// una pantalla de un color. La app de Android juega siempre (ver src/lib/web-hours.ts).
 function WebHoursGate() {
-  const [open, setOpen] = useState(webIsOpen);
+  // El servidor siempre renderiza el juego; el cliente decide apenas monta.
+  const [open, setOpen] = useState(true);
   useEffect(() => {
-    const t = setInterval(() => setOpen(webIsOpen()), 30000);
+    const apply = () => setOpen(webIsOpen());
+    apply();
+    const t = setInterval(apply, 30000);
     return () => clearInterval(t);
   }, []);
   if (open) return <Game />;
