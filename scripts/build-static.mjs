@@ -87,7 +87,11 @@ async function main() {
   await mkdir(OUT_DIR, { recursive: true });
   await cp(CLIENT_DIR, OUT_DIR, { recursive: true });
   await rm(join(OUT_DIR, "_headers"), { force: true });
-  await writeFile(join(OUT_DIR, "index.html"), html, "utf8");
+  // El APK se reconoce a sí mismo con este marcador, así el horario de la web nunca
+  // bloquea la app de Android (ver src/lib/web-hours.ts).
+  const APP_MARKER = '<meta name="kokicat-app" content="apk"><script>window.__KOKICAT_APK__=true;</script>';
+  const marked = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => m + APP_MARKER) : APP_MARKER + html;
+  await writeFile(join(OUT_DIR, "index.html"), marked, "utf8");
 
   await downloadUploadedAssets();
 
