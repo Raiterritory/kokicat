@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AventuraRouteImport } from './routes/aventura'
 import { Route as ApiChallengeRouteImport } from './routes/api/challenge'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AventuraRoute = AventuraRouteImport.update({
+  id: '/aventura',
+  path: '/aventura',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChallengeRoute = ApiChallengeRouteImport.update({
@@ -25,27 +31,31 @@ const ApiChallengeRoute = ApiChallengeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/aventura': typeof AventuraRoute
   '/api/challenge': typeof ApiChallengeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/aventura': typeof AventuraRoute
   '/api/challenge': typeof ApiChallengeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/aventura': typeof AventuraRoute
   '/api/challenge': typeof ApiChallengeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/challenge'
+  fullPaths: '/' | '/aventura' | '/api/challenge'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/challenge'
-  id: '__root__' | '/' | '/api/challenge'
+  to: '/' | '/aventura' | '/api/challenge'
+  id: '__root__' | '/' | '/aventura' | '/api/challenge'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AventuraRoute: typeof AventuraRoute
   ApiChallengeRoute: typeof ApiChallengeRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/aventura': {
+      id: '/aventura'
+      path: '/aventura'
+      fullPath: '/aventura'
+      preLoaderRoute: typeof AventuraRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/challenge': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AventuraRoute: AventuraRoute,
   ApiChallengeRoute: ApiChallengeRoute,
 }
 export const routeTree = rootRouteImport
