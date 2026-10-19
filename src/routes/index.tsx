@@ -83,6 +83,9 @@ function chileHour(): number {
   }
 }
 const webIsOpen = () => {
+  // La app de Android (APK) no tiene horario: solo la versión web.
+  const cap = (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  if (cap?.isNativePlatform?.()) return true;
   const h = chileHour();
   return h >= WEB_OPEN_HOUR && h < WEB_CLOSE_HOUR;
 };
