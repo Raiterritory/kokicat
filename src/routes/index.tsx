@@ -53,7 +53,7 @@ import { useModeSwipe } from "@/lib/mode-swipe";
 import { useGamepad } from "@/lib/gamepad";
 import {
   playFlap, playMeow, playLogoSound, playBossStart,
-  startMusic, setMusicVolume, setSfxVolume,
+  startMusic, stopMusic, setMusicVolume, setSfxVolume,
   getMusicVolume, getSfxVolume,
 } from "@/lib/sounds";
 import { webIsOpen } from "@/lib/web-hours";
@@ -83,6 +83,10 @@ function WebHoursGate() {
     const t = setInterval(apply, 30000);
     return () => clearInterval(t);
   }, []);
+  // Fuera del horario la pantalla queda en silencio: se detiene la música en el momento del cierre.
+  useEffect(() => {
+    if (!open) stopMusic();
+  }, [open]);
   if (open) return <Game />;
   // Sin avisos ni texto: solo una pantalla de un color hasta que vuelve a abrir.
   return <div style={{ position: "fixed", inset: 0, background: "#0d1226" }} />;
