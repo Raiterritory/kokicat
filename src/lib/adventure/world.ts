@@ -33,7 +33,11 @@ export type Who = "gufi" | "raton" | "taz";
 export type Npc = { who: Who; x: number; y: number };
 export type Cake = { x: number; y: number; taken: boolean };
 export type Line = { who: Who | "koki" | "nadie"; text: string };
-/* el encargo: 0 sin empezar, 1 buscando, 2 terminado */
+/*
+ * en qué va la historia:
+ *   encargo 1, "Los pastelitos de Gufi": 0 sin empezar, 1 buscando, 2 terminado
+ *   encargo 2, "Pilla al Taz":           3 persiguiéndolo, 4 te sigue de vuelta donde Gufi, 5 terminado
+ */
 export type World = {
   w: number;
   h: number;
@@ -45,8 +49,12 @@ export type World = {
   frame: number;
   npcs: Npc[];
   cakes: Cake[];
-  quest: 0 | 1 | 2;
+  quest: number;
+  justDone: number; /* el encargo que se acaba de cumplir (para el cartel), o 0 */
   found: number;
+  tazRest: number; /* el Taz descansa (se cansa cada tanto al arrancar) */
+  tazRun: number;
+  tazStuck: number;
   tazGave: boolean;
   tazAsked: number;
   talk: Line[] | null;
@@ -56,6 +64,8 @@ export type World = {
 
 const SOLID = new Set(["b", "w", "n", "T", "H", "s"]);
 const SPEED = 1.15;
+const TAZ_SPEED = 1.0; /* un poco más lento que Koki: se pilla acorralándolo */
+const TAZ_SEES = 80; /* desde qué distancia arranca */
 const BODY = 10; /* el cuerpo de Koki para chocar (los pies, 10x6 puntos) */
 
 export function newWorld(): World {
@@ -73,7 +83,11 @@ export function newWorld(): World {
     npcs: [],
     cakes: [],
     quest: 0,
+    justDone: 0,
     found: 0,
+    tazRest: 0,
+    tazRun: 0,
+    tazStuck: 0,
     tazGave: false,
     tazAsked: 0,
     talk: null,
@@ -115,15 +129,98 @@ const solidAt = (wd: World, px: number, py: number) => {
   if (tx < 0 || ty < 0 || tx >= wd.w || ty >= wd.h) return true;
   return SOLID.has(wd.ground[ty][tx]);
 };
-/* ¿los pies de Koki en (x, y) chocan con algo? (bloques sólidos o alguien de la pandilla) */
-function blocked(wd: World, x: number, y: number) {
+/* ¿unos pies en (x, y) chocan con algo? (bloques sólidos o alguien más de la pandilla) */
+function blockedBy(wd: World, x: number, y: number, self: Npc | null) {
   const x0 = x - BODY / 2,
     x1 = x + BODY / 2,
     y0 = y + 1,
     y1 = y + 7;
   if (solidAt(wd, x0, y0) || solidAt(wd, x1, y0) || solidAt(wd, x0, y1) || solidAt(wd, x1, y1))
     return true;
-  return wd.npcs.some((n) => Math.abs(n.x - x) < 12 && Math.abs(n.y - y) < 9);
+  /* el Taz que te sigue no estorba */
+  return wd.npcs.some(
+    (n) =>
+      n !== self &&
+      !(n.who === "taz" && wd.quest === 4) &&
+      Math.abs(n.x - x) < 12 &&
+      Math.abs(n.y - y) < 9,
+  );
+}
+const blocked = (wd: World, x: number, y: number) => blockedBy(wd, x, y, null);
+const tazOf = (wd: World) => wd.npcs.find((n) => n.who === "taz")!;
+/* mover a alguien de la pandilla (choca igual que Koki, y tampoco atraviesa a Koki) */
+function moveNpc(wd: World, n: Npc, dx: number, dy: number) {
+  const hitsKoki = (x: number, y: number) =>
+    wd.quest !== 4 && Math.abs(wd.x - x) < 12 && Math.abs(wd.y - y) < 9;
+  let moved = false;
+  if (dx && !blockedBy(wd, n.x + dx, n.y, n) && !hitsKoki(n.x + dx, n.y)) {
+    n.x += dx;
+    moved = true;
+  }
+  if (dy && !blockedBy(wd, n.x, n.y + dy, n) && !hitsKoki(n.x, n.y + dy)) {
+    n.y += dy;
+    moved = true;
+  }
+  return moved;
+}
+
+/* el Taz arranca de Koki: de las 8 direcciones elige la que más lo aleja (y a ratos se cansa) */
+function tazFlees(wd: World) {
+  const t = tazOf(wd);
+  const d = Math.hypot(t.x - wd.x, t.y - wd.y);
+  if (d < 15) {
+    wd.quest = 4;
+    wd.talk = [
+      { who: "taz", text: "¡Ya, ya! Me pillaste. Voy a pedir perdón… pero no me mirí." },
+      { who: "nadie", text: "🐈‍⬛ El Taz te sigue, arrastrando las patas." },
+    ];
+    wd.page = 0;
+    wd.events.push("caught");
+    return;
+  }
+  if (wd.tazRest > 0) {
+    wd.tazRest--;
+    return;
+  }
+  if (d > TAZ_SEES) return;
+  if (++wd.tazRun > 220) {
+    wd.tazRun = 0;
+    wd.tazRest = 60;
+    wd.events.push("tired");
+    return;
+  }
+  let best: [number, number] | null = null,
+    bd = -1;
+  for (let k = 0; k < 8; k++) {
+    const a = (k * Math.PI) / 4,
+      dx = Math.cos(a) * TAZ_SPEED,
+      dy = Math.sin(a) * TAZ_SPEED;
+    if (blockedBy(wd, t.x + dx, t.y + dy, t)) continue;
+    const nd = Math.hypot(t.x + dx - wd.x, t.y + dy - wd.y);
+    if (nd > bd) {
+      bd = nd;
+      best = [dx, dy];
+    }
+  }
+  if (best && bd > d - 0.2) moveNpc(wd, t, best[0], best[1]);
+}
+/* el Taz pillado camina detrás de Koki (si se queda pegado, aparece al lado) */
+function tazFollows(wd: World) {
+  const t = tazOf(wd);
+  const tx = wd.x - wd.face * 16,
+    ty = wd.y;
+  const d = Math.hypot(tx - t.x, ty - t.y);
+  if (d < 6) {
+    wd.tazStuck = 0;
+    return;
+  }
+  const sp = Math.min(1.4, d / 6);
+  if (!moveNpc(wd, t, ((tx - t.x) / d) * sp, ((ty - t.y) / d) * sp)) wd.tazStuck++;
+  if (wd.tazStuck > 90 || d > 120) {
+    t.x = wd.x;
+    t.y = wd.y;
+    wd.tazStuck = 0;
+  }
 }
 
 /* quién está lo bastante cerca para hablarle */
@@ -162,6 +259,7 @@ function linesFor(wd: World, who: Who): Line[] {
       return [{ who: "gufi", text: `Llevai ${wd.found} de 3… la once no se hace sola, po.` }];
     if (wd.quest === 1) {
       wd.quest = 2;
+      wd.justDone = 1;
       wd.events.push("done");
       return [
         { who: "gufi", text: "¡Bacán, Koki! Ahora sí hay once." },
@@ -169,7 +267,32 @@ function linesFor(wd: World, who: Who): Line[] {
         { who: "taz", text: "(Desde la reja) Miau. Yo no fui." },
       ];
     }
-    return [{ who: "gufi", text: "Tamos listos pa' la once. Gracias, compadre." }];
+    if (wd.quest === 2) {
+      wd.quest = 3;
+      wd.events.push("quest");
+      return [
+        {
+          who: "gufi",
+          text: "Ya, la once está lista… pero el Taz me debe una disculpa por el pastelito mordido.",
+        },
+        { who: "gufi", text: "Tráemelo, Koki. Ojo que corre más que micro en bajada." },
+        { who: "koki", text: "Miau. (Koki se estira y se prepara.)" },
+      ];
+    }
+    if (wd.quest === 3)
+      return [{ who: "gufi", text: "¿Y el Taz? Anda a pillarlo, po. Está por la reja." }];
+    if (wd.quest === 4) {
+      wd.quest = 5;
+      wd.justDone = 2;
+      wd.events.push("done");
+      return [
+        { who: "taz", text: "Perdón, Gufi… el pastelito me miró feo. No fue mi culpa." },
+        { who: "gufi", text: "Ya po, te perdono. Pero la próxima me convidai la mitad." },
+        { who: "taz", text: "La mitad de la mitad." },
+        { who: "gufi", text: "Trato hecho. 🐾" },
+      ];
+    }
+    return [{ who: "gufi", text: "Tamos todos en paz. Por ahora." }];
   }
   if (who === "raton") {
     if (wd.quest === 0)
@@ -185,9 +308,23 @@ function linesFor(wd: World, who: Who): Line[] {
           text: "Y el Taz anda con la boca llena de crema… yo no digo na', pero digo.",
         },
       ];
+    if (wd.quest === 3)
+      return [
+        { who: "raton", text: "¿Pillar al Taz? Es rápido, pero se cansa harto." },
+        {
+          who: "raton",
+          text: "Acorrálalo contra la reja, los árboles o el estanque. Ahí no tiene pa' dónde.",
+        },
+      ];
+    if (wd.quest === 4)
+      return [{ who: "raton", text: "Jajaja, mírenlo, todo humillado. Grabando pa' TikTok." }];
     return [{ who: "raton", text: "Me guardaron un pedacito, ¿cierto? ¿Cierto?" }];
   }
   /* el Taz */
+  if (wd.quest === 2) return [{ who: "taz", text: "Miau. (Se hace el leso.)" }];
+  if (wd.quest === 3) return [{ who: "taz", text: "¡No me pillai, gil!" }];
+  if (wd.quest === 4) return [{ who: "taz", text: "Ya, ya, voy… no me apurí." }];
+  if (wd.quest >= 5) return [{ who: "taz", text: "Miau. (Ofendido, pero en paz.)" }];
   if (wd.quest !== 1) return [{ who: "taz", text: "Miau. (Te mira raro.)" }];
   if (wd.tazGave) return [{ who: "taz", text: "Ya te lo pasé, ¿qué más querí?" }];
   if (wd.found < 2) {
@@ -238,6 +375,9 @@ export function stepWorld(wd: World, pad: Pad, act: boolean) {
     dy *= Math.SQRT1_2;
   }
   wd.moving = !!(dx || dy);
+  if (wd.quest === 3) tazFlees(wd);
+  else if (wd.quest === 4) tazFollows(wd);
+  if (wd.talk) return;
   if (dx) wd.face = dx > 0 ? 1 : -1;
   if (dx && !blocked(wd, wd.x + dx * SPEED, wd.y)) wd.x += dx * SPEED;
   if (dy && !blocked(wd, wd.x, wd.y + dy * SPEED)) wd.y += dy * SPEED;

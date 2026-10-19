@@ -43,7 +43,7 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
     page: 0,
     quest: 0,
     found: 0,
-    done: false,
+    done: 0 /* el encargo recién cumplido (muestra su cartel) */,
   });
 
   useEffect(() => {
@@ -110,7 +110,7 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
         stepWorld(wd, pad, act);
         for (const ev of wd.events) {
           if (ev === "cake") playFlap();
-          else if (ev === "done" || ev === "quest") playMeow();
+          else if (ev === "done" || ev === "quest" || ev === "caught") playMeow();
         }
         if (`${!!wd.talk}${wd.page}${wd.quest}${wd.found}` !== before)
           setUi({
@@ -118,7 +118,7 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
             page: wd.page,
             quest: wd.quest,
             found: wd.found,
-            done: wd.quest === 2 && !wd.talk,
+            done: !wd.talk ? wd.justDone : 0,
           });
       }
       /* la cámara sigue a Koki sin salirse del barrio (en puntos enteros: el pixel art no se ve borroso) */
@@ -149,7 +149,8 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
             shadow(n.x, n.y);
             const idle = Math.floor((wd.frame + n.x) / 40) % 2;
             ctx.drawImage(spr[n.who][idle], Math.round(n.x - 8 - camX), Math.round(n.y - 9 - camY));
-            if (n.who === "gufi" && wd.quest === 0 && nearby(wd) !== n) {
+            /* Gufi tiene un encargo nuevo (antes del primero y del segundo) */
+            if (n.who === "gufi" && (wd.quest === 0 || wd.quest === 2) && nearby(wd) !== n) {
               /* el "!" de quien tiene un encargo */
               const by = Math.round(n.y - 22 - camY + Math.sin(wd.frame * 0.1) * 1.5);
               ctx.fillStyle = "#3b2a1a";
@@ -199,7 +200,7 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
 
   const start = () => {
     worldRef.current = newWorld();
-    setUi({ talk: null, page: 0, quest: 0, found: 0, done: false });
+    setUi({ talk: null, page: 0, quest: 0, found: 0, done: 0 });
     setScreen("playing");
   };
   const hold = (key: keyof Pad) => ({
@@ -263,6 +264,14 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
                     📜 <span className="text-[#ffe14d]">Encargo:</span> los pastelitos de Gufi · 🧁{" "}
                     {ui.found}/3
                   </>
+                ) : ui.quest === 3 ? (
+                  <>
+                    📜 <span className="text-[#ffe14d]">Encargo:</span> pilla al Taz
+                  </>
+                ) : ui.quest === 4 ? (
+                  <>
+                    📜 <span className="text-[#ffe14d]">Encargo:</span> lleva al Taz donde Gufi
+                  </>
                 ) : (
                   <>✅ Encargo cumplido</>
                 )}
@@ -292,19 +301,26 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
                 <div className="absolute right-3 bottom-1 text-[#ffe14d] animate-pulse">▼</div>
               </div>
             )}
-            {ui.done && (
+            {ui.done > 0 && (
               <div className={`${box} absolute inset-x-[15%] top-[18%] p-4 text-center`}>
                 <div className="text-[clamp(16px,3.5vw,32px)] text-[#ffe14d]">
                   ¡Encargo cumplido!
                 </div>
                 <div className="text-[clamp(12px,2.4vw,22px)] mt-1">
-                  Gufi tiene su once (casi entera) · 🧁 +30
+                  {ui.done === 1
+                    ? "Gufi tiene su once (casi entera) · 🧁 +30"
+                    : "El Taz pidió perdón (más o menos) · 🧁 +40"}
                 </div>
-                <div className="text-[clamp(11px,2vw,18px)] mt-1 opacity-75">Continuará…</div>
+                <div className="text-[clamp(11px,2vw,18px)] mt-1 opacity-75">
+                  {ui.done === 1 ? "Gufi tiene algo más que pedirte…" : "Continuará…"}
+                </div>
                 <div className="flex gap-2 justify-center mt-3">
                   <button
                     className="rounded bg-[#ffe14d] text-[#1a1030] px-4 py-1"
-                    onClick={() => setUi((u) => ({ ...u, done: false }))}
+                    onClick={() => {
+                      worldRef.current.justDone = 0;
+                      setUi((u) => ({ ...u, done: 0 }));
+                    }}
                   >
                     Seguir paseando
                   </button>

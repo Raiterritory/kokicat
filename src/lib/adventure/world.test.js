@@ -91,4 +91,40 @@ test("el encargo de Gufi se puede cumplir", () => {
   const end = talk(wd);
   expect(end.lines.join(" ")).toContain("mordido");
   expect(wd.quest).toBe(2);
+  expect(wd.justDone).toBe(1);
+
+  /* encargo 2: Gufi pide traer al Taz, que arranca; Koki lo persigue hasta pillarlo */
+  talk(wd);
+  expect(wd.quest).toBe(3);
+  const taz = wd.npcs.find((n) => n.who === "taz");
+  let frames = 0;
+  for (; frames < 60 * 90 && wd.quest === 3; frames++) {
+    /* va derecho hacia el Taz; si choca, prueba por el camino de bloques */
+    const [tx, ty] = [Math.floor(taz.x / TILE), Math.floor(taz.y / TILE)];
+    const step = frames % 40 < 30 ? null : route(wd, tx, ty)[0];
+    const gx = step ? step[0] * TILE + TILE / 2 : taz.x,
+      gy = step ? step[1] * TILE + TILE / 2 : taz.y;
+    stepWorld(
+      wd,
+      {
+        left: wd.x > gx + 1,
+        right: wd.x < gx - 1,
+        up: wd.y > gy + 1,
+        down: wd.y < gy - 1,
+        act: false,
+      },
+      false,
+    );
+  }
+  console.log(`el Taz pillado en ${(frames / 60).toFixed(1)} s`);
+  expect(wd.quest).toBe(4);
+  while (wd.talk)
+    stepWorld(wd, { left: false, right: false, up: false, down: false, act: true }, true);
+  /* de vuelta donde Gufi, con el Taz detrás */
+  walkTo(wd, gx - 1, gy);
+  expect(Math.hypot(taz.x - wd.x, taz.y - wd.y)).toBeLessThan(60);
+  const sorry = talk(wd);
+  expect(sorry.lines.join(" ")).toContain("Perdón");
+  expect(wd.quest).toBe(5);
+  expect(wd.justDone).toBe(2);
 });
