@@ -1,6 +1,6 @@
 // Los dibujos de Koki Adventure, en pixel art: el barrio (pintado una vez en un canvas del tamaño del mapa)
 // y la pandilla (sprites de 16x16 escritos con letras, como en la versión de Game Boy Color).
-import { TILE, type World } from "./world";
+import { TILE, exitOpen, type World } from "./world";
 
 type Px = (x: number, y: number, c: number) => void;
 const hsh = (a: number, b: number) => ((a * 73856093) ^ (b * 19349663)) & 0xffff;
@@ -27,8 +27,8 @@ function painter(w: number, h: number) {
   return { cv, px, rect, done: () => ctx.putImageData(img, 0, 0) };
 }
 
-/* ---------- el barrio ---------- */
-export function paintBarrio(wd: World): HTMLCanvasElement {
+/* ---------- el mapa donde está Koki (el barrio o la plaza) ---------- */
+export function paintMap(wd: World): HTMLCanvasElement {
   const W = wd.w * TILE,
     H = wd.h * TILE;
   const { cv, px, rect, done } = painter(W, H);
@@ -45,10 +45,20 @@ export function paintBarrio(wd: World): HTMLCanvasElement {
       const c = tileAt(tx, ty),
         X = tx * TILE,
         Y = ty * TILE;
-      if (c === "p") {
+      /* la salida: camino si está abierta, arbusto si no */
+      const open = c === "e" && exitOpen(wd);
+      if (c === "p" || open) {
         for (let y = 0; y < TILE; y++)
           for (let x = 0; x < TILE; x++)
             px(X + x, Y + y, hsh(X + x + 7, Y + y) % 13 > 1 ? 0xe0b97f : 0xc99f63);
+      } else if (c === "q" || c === "F" || c === "B" || c === "S") {
+        /* baldosas de la plaza (debajo de la pileta, las bancas y los puestos también) */
+        for (let y = 0; y < TILE; y++)
+          for (let x = 0; x < TILE; x++) {
+            const edge = x % 8 === 0 || y % 8 === 0;
+            const v = hsh(X + x, Y + y + 3) % 9;
+            px(X + x, Y + y, edge ? 0xb9ab95 : v ? 0xd8ccb6 : 0xcbbda5);
+          }
       } else if (c === "w") {
         for (let y = 0; y < TILE; y++)
           for (let x = 0; x < TILE; x++)
@@ -68,13 +78,88 @@ export function paintBarrio(wd: World): HTMLCanvasElement {
             rect(X + x, Y + y, 2, 2, col);
             px(X + x, Y + y + 2, 0x2f8a2f);
           }
-        if (c === "b") {
+        if (c === "b" || (c === "e" && !open)) {
           for (let y = 0; y < TILE; y++)
             for (let x = 0; x < TILE; x++) {
               const d = Math.hypot(x - 7.5, y - 8);
               if (d < 8.5)
                 px(X + x, Y + y, d > 6.5 ? 0x2b7a33 : hsh(X + x, Y + y) % 5 ? 0x3d9c42 : 0x62c556);
             }
+        }
+      }
+    }
+  /* la pileta (donde empieza una zona de 4x4 "F") */
+  for (let ty = 0; ty < wd.h; ty++)
+    for (let tx = 0; tx < wd.w; tx++) {
+      if (tileAt(tx, ty) !== "F" || tileAt(tx - 1, ty) === "F" || tileAt(tx, ty - 1) === "F")
+        continue;
+      const cx = tx * TILE + 32,
+        cy = ty * TILE + 32;
+      for (let y = -32; y < 32; y++)
+        for (let x = -32; x < 32; x++) {
+          const d = Math.hypot(x + 0.5, y + 0.5);
+          if (d < 30)
+            px(
+              cx + x,
+              cy + y,
+              d > 26
+                ? 0x8f8578
+                : d > 23
+                  ? 0xb3a998
+                  : (x * 3 + y * 5 + 900) % 11
+                    ? 0x4aa8e8
+                    : 0x9fd8ff,
+            );
+        }
+      /* el chorro del medio */
+      for (let y = -12; y < 8; y++)
+        for (let x = -3; x < 3; x++) px(cx + x, cy + y, Math.abs(x) > 1 ? 0xbfe9ff : 0xffffff);
+      for (let y = 4; y < 10; y++) for (let x = -6; x < 6; x++) px(cx + x, cy + y, 0x8f8578);
+    }
+  /* las bancas */
+  for (let ty = 0; ty < wd.h; ty++)
+    for (let tx = 0; tx < wd.w; tx++) {
+      if (tileAt(tx, ty) !== "B" || tileAt(tx - 1, ty) === "B") continue;
+      const X = tx * TILE,
+        Y = ty * TILE;
+      for (const yy of [3, 7, 11]) rect(X + 1, Y + yy, 30, 3, 0xa86b3c);
+      for (const yy of [5, 9, 13]) rect(X + 1, Y + yy, 30, 1, 0x7a4a2a);
+      rect(X + 3, Y + 14, 3, 2, 0x3a3a44);
+      rect(X + 26, Y + 14, 3, 2, 0x3a3a44);
+    }
+  /* los puestos de la feria (3x2): toldo de rayas y la mesa con lo que venden; el de la Tía tiene pescados */
+  for (let ty = 0; ty < wd.h; ty++)
+    for (let tx = 0; tx < wd.w; tx++) {
+      if (tileAt(tx, ty) !== "S" || tileAt(tx - 1, ty) === "S" || tileAt(tx, ty - 1) === "S")
+        continue;
+      const X = tx * TILE,
+        Y = ty * TILE;
+      const stripe = [0xe8344a, 0x2d9bff, 0xffb02e, 0x3ddc4a][(tx + ty) % 4];
+      rect(X + 2, Y + 4, 2, 26, 0x6b4428);
+      rect(X + 44, Y + 4, 2, 26, 0x6b4428);
+      for (let x = 0; x < 48; x++)
+        for (let y = 0; y < 12; y++) px(X + x, Y + y - 2, (x >> 2) % 2 ? stripe : 0xffffff);
+      for (let x = 0; x < 48; x += 4) {
+        px(X + x + 1, Y + 10, stripe);
+        px(X + x + 2, Y + 10, stripe);
+      }
+      rect(X + 1, Y + 18, 46, 12, 0xc98a4b);
+      rect(X + 1, Y + 18, 46, 2, 0xe0a866);
+      rect(X + 1, Y + 29, 46, 2, 0x7a4a2a);
+      const fish =
+        wd.map === "plaza" && tx === 16 && ty === 1; /* el de la Tía (arriba a la derecha) */
+      for (let k = 0; k < 5; k++) {
+        const gx = X + 5 + k * 8,
+          gy = Y + 21 + (k % 2);
+        if (fish) {
+          rect(gx, gy + 1, 6, 3, 0xa9c4dc);
+          px(gx + 6, gy, 0x8aa6c0);
+          px(gx + 6, gy + 4, 0x8aa6c0);
+          px(gx + 1, gy + 2, 0x222);
+        } else {
+          const col = [0xe8344a, 0xffb02e, 0x3ddc4a, 0xb27bff, 0xff8fb8][(k + tx) % 5];
+          rect(gx, gy, 5, 5, col);
+          px(gx + 1, gy + 1, 0xffffff);
         }
       }
     }
@@ -248,6 +333,72 @@ const SPRITES: Record<string, [string[], Record<string, number>]> = {
       "................",
     ],
     { o: 0x2a2a30, g: 0x8a8d98, l: 0xb8bac4, p: 0xf2a7b8, k: 0x111111 },
+  ],
+  /* la Tía del pescado: pelo gris tomado, delantal blanco */
+  tia: [
+    [
+      "....oooooooo....",
+      "...ohhhhhhhho...",
+      "..ohhhhhhhhhho..",
+      "..ohssssssssho..",
+      "..osskksskksso..",
+      "..osssssssssso..",
+      "..osssmmmmssso..",
+      "...osssssssso...",
+      "..oddddddddddo..",
+      ".oddaaaaaaaaddo.",
+      ".osdaaaaaaaadso.",
+      ".osdaaaaaaaadso.",
+      "..odaaaaaaaado..",
+      "..oddddddddddo..",
+      "...okko..okko...",
+      "...oooo..oooo...",
+    ],
+    { o: 0x2a1e1e, h: 0xc9c9d6, s: 0xf1c49a, k: 0x2a2a3a, m: 0xd2485a, d: 0xe35d9a, a: 0xffffff },
+  ],
+  /* el Quiltro de la plaza: café, orejas caídas */
+  quiltro: [
+    [
+      "................",
+      ".oo..........oo.",
+      "oeeo........oeeo",
+      "oeeoooooooooooeo",
+      "oeettttttttttteo",
+      ".ottkkttttkktto.",
+      ".otttttttttttto.",
+      ".otttttkkttttto.",
+      "..otttttppttto..",
+      "...otttttttto...",
+      "..obbbbbbbbbbo..",
+      ".obbbwwbbbbbbbo.",
+      ".obbbwwbbbbbbbo.",
+      ".obbbbbbbbbbbbo.",
+      "..otto....otto..",
+      "..oooo....oooo..",
+    ],
+    { o: 0x3b2414, e: 0x6b3f1e, t: 0xb07a43, k: 0x111111, p: 0xff8fa8, b: 0x9a6534, w: 0xd9b07a },
+  ],
+  /* una paloma de la feria */
+  paloma: [
+    [
+      "................",
+      "................",
+      "................",
+      "........ooo.....",
+      ".......ohhho....",
+      ".......ohkhoyy..",
+      "...oooooohhho...",
+      "..oggggggggggo..",
+      ".oggwwwwgggo....",
+      ".ogwwwwwwggo....",
+      "..oggggggggo....",
+      "...ooooooooo....",
+      ".....y...y......",
+      "................",
+      "................",
+      "................",
+    ],
+    { o: 0x2a2a35, h: 0x5c6b8a, k: 0x111111, y: 0xff9a2d, g: 0x9aa3b5, w: 0xc4cad6 },
   ],
 };
 /* cada sprite en dos poses (quieto y con un pie levantado) */

@@ -13,6 +13,7 @@ import {
   newWorld,
   stepWorld,
   nearby,
+  PIGEONS_GOAL,
   nearSpot,
   rustle,
   SPOTS,
@@ -21,8 +22,10 @@ import {
   type Pad,
   type Line,
 } from "./world";
-import { paintBarrio, paintSprites, paintCake } from "./art";
+import { paintMap, paintSprites, paintCake } from "./art";
 
+/* los que no tienen foto (la Tía y el Quiltro) usan su dibujo agrandado */
+const PIXEL_FACES: Line["who"][] = ["tia", "quiltro"];
 const VW = 240,
   VH = 160; /* la pantalla, en puntos de pixel art (se agranda sin suavizar) */
 const NAMES: Record<Line["who"], string> = {
@@ -30,6 +33,8 @@ const NAMES: Record<Line["who"], string> = {
   raton: "EL RATÓN",
   taz: "EL TAZ",
   koki: "KOKI",
+  tia: "LA TÍA DEL PESCADO",
+  quiltro: "EL QUILTRO",
   nadie: "",
 };
 const FACES: Partial<Record<Line["who"], { src: string; pos: string; size: string }>> = {
@@ -49,12 +54,14 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
   const touch = useRef<Pad>({ up: false, down: false, left: false, right: false, act: false });
   const [screen, setScreen] = useState<"title" | "playing">("title");
   /* lo que muestra la interfaz (se copia del mundo cuando cambia) */
+  const [pixelFaces, setPixelFaces] = useState<Partial<Record<Line["who"], string>>>({});
   const [ui, setUi] = useState({
     talk: null as Line[] | null,
     page: 0,
     quest: 0,
     found: 0,
     seek: 0 /* cuántas veces encontraste al Ratón */,
+    scared: 0 /* palomas espantadas */,
     done: 0 /* el encargo recién cumplido (muestra su cartel) */,
   });
 
@@ -94,9 +101,12 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     const wd = worldRef.current;
-    const barrio = paintBarrio(wd),
-      spr = paintSprites(),
+    const spr = paintSprites(),
       cake = paintCake();
+    setPixelFaces(Object.fromEntries(PIXEL_FACES.map((w) => [w, spr[w][0].toDataURL()])));
+    /* el mapa se pinta una vez; de nuevo al cambiar de lugar o cuando se abre la salida a la plaza */
+    let mapKey = "",
+      mapCv: HTMLCanvasElement | null = null;
     let raf = 0,
       last = performance.now(),
       acc = 0,
@@ -118,19 +128,20 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
         };
         const act = pad.act && !prevAct;
         prevAct = pad.act;
-        const before = `${!!wd.talk}${wd.page}${wd.quest}${wd.found}${wd.hideRound}`;
+        const before = `${!!wd.talk}${wd.page}${wd.quest}${wd.found}${wd.hideRound}${wd.scared}`;
         stepWorld(wd, pad, act);
         for (const ev of wd.events) {
-          if (ev === "cake" || ev === "found") playFlap();
+          if (ev === "cake" || ev === "found" || ev === "pigeon") playFlap();
           else if (ev === "done" || ev === "quest" || ev === "caught") playMeow();
         }
-        if (`${!!wd.talk}${wd.page}${wd.quest}${wd.found}${wd.hideRound}` !== before)
+        if (`${!!wd.talk}${wd.page}${wd.quest}${wd.found}${wd.hideRound}${wd.scared}` !== before)
           setUi({
             talk: wd.talk,
             page: wd.page,
             quest: wd.quest,
             found: wd.found,
             seek: wd.hideRound,
+            scared: wd.scared,
             done: !wd.talk ? wd.justDone : 0,
           });
       }
@@ -138,14 +149,19 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
       const camX = Math.round(Math.max(0, Math.min(wd.w * TILE - VW, wd.x - VW / 2)));
       const camY = Math.round(Math.max(0, Math.min(wd.h * TILE - VH, wd.y - VH / 2)));
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(barrio, -camX, -camY);
+      const key = `${wd.map}:${wd.quest >= 7}`;
+      if (key !== mapKey || !mapCv) {
+        mapKey = key;
+        mapCv = paintMap(wd);
+      }
+      ctx.drawImage(mapCv, -camX, -camY);
       /* los de adelante tapan a los de atrás: se dibujan de arriba hacia abajo */
       const things: { y: number; draw: () => void }[] = [];
       const shadow = (x: number, y: number) => {
         ctx.fillStyle = "rgba(20,50,20,.35)";
         ctx.fillRect(Math.round(x - 5 - camX), Math.round(y + 7 - camY), 10, 2);
       };
-      if (wd.quest === 1)
+      if (wd.quest === 1 && wd.map === "barrio")
         for (const c of wd.cakes)
           if (!c.taken)
             things.push({
@@ -155,8 +171,23 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
                 ctx.drawImage(cake, Math.round(c.x - 4 - camX), Math.round(c.y - 6 + bob - camY));
               },
             });
+      /* las palomas (sentadas picoteando, o yéndose volando) */
+      if (wd.map === "plaza")
+        for (const p of wd.pigeons)
+          things.push({
+            y: p.y,
+            draw: () => {
+              const peck = p.fly === 0 && Math.floor((wd.frame + p.x) / 14) % 3 === 0 ? 1 : 0;
+              ctx.save();
+              ctx.globalAlpha = p.fly ? Math.max(0, 1 - p.fly / 60) : 1;
+              ctx.translate(Math.round(p.x - camX), Math.round(p.y - 9 - camY + peck));
+              if (p.dir > 0) ctx.scale(-1, 1);
+              ctx.drawImage(spr.paloma[p.fly ? Math.floor(p.fly / 4) % 2 : 0], -8, 0);
+              ctx.restore();
+            },
+          });
       for (const n of wd.npcs)
-        if (!n.hidden)
+        if (!n.hidden && n.map === wd.map)
           things.push({
             y: n.y,
             draw: () => {
@@ -167,11 +198,13 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
                 Math.round(n.x - 8 - camX),
                 Math.round(n.y - 9 - camY),
               );
-              /* el "!" de quien tiene un encargo nuevo: Gufi (el 1 y el 2) y el Ratón (el 3) */
+              /* el "!" de quien tiene un encargo nuevo: Gufi (el 1 y el 2), el Ratón (el 3) y la Tía (el 4) */
               const ask =
                 n.who === "gufi"
                   ? wd.quest === 0 || wd.quest === 2
-                  : n.who === "raton" && wd.quest === 5;
+                  : n.who === "raton"
+                    ? wd.quest === 5
+                    : n.who === "tia" && (wd.quest === 7 || wd.quest === 9);
               if (ask && nearby(wd) !== n) {
                 /* el "!" de quien tiene un encargo */
                 const by = Math.round(n.y - 22 - camY + Math.sin(wd.frame * 0.1) * 1.5);
@@ -240,7 +273,7 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
 
   const start = () => {
     worldRef.current = newWorld();
-    setUi({ talk: null, page: 0, quest: 0, found: 0, seek: 0, done: 0 });
+    setUi({ talk: null, page: 0, quest: 0, found: 0, seek: 0, scared: 0, done: 0 });
     setScreen("playing");
   };
   const hold = (key: keyof Pad) => ({
@@ -317,6 +350,20 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
                     📜 <span className="text-[#ffe14d]">Encargo:</span> encuentra al Ratón · 🐭{" "}
                     {ui.seek}/3
                   </>
+                ) : ui.quest === 7 ? (
+                  <>
+                    📜 <span className="text-[#ffe14d]">Encargo:</span> ve a la plaza (al final del
+                    camino) 👉
+                  </>
+                ) : ui.quest === 8 ? (
+                  <>
+                    📜 <span className="text-[#ffe14d]">Encargo:</span> espanta las palomas · 🕊{" "}
+                    {ui.scared}/{PIGEONS_GOAL}
+                  </>
+                ) : ui.quest === 9 ? (
+                  <>
+                    📜 <span className="text-[#ffe14d]">Encargo:</span> vuelve donde la Tía
+                  </>
                 ) : (
                   <>✅ Encargo cumplido</>
                 )}
@@ -327,6 +374,14 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
                 onPointerDown={tapTalk}
                 className={`${box} absolute left-[2.5%] right-[2.5%] bottom-[3%] h-[28%] flex gap-[2%] p-[1.5%] cursor-pointer`}
               >
+                {!face && pixelFaces[line.who] && (
+                  <img
+                    src={pixelFaces[line.who]}
+                    alt=""
+                    className="h-full aspect-square flex-none rounded-md border-4 border-[#ffe14d] bg-[#d8ccb6]"
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                )}
                 {face && (
                   <div
                     className="h-full aspect-square flex-none rounded-md border-4 border-[#ffe14d]"
@@ -356,14 +411,18 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
                     ? "Gufi tiene su once (casi entera) · 🧁 +30"
                     : ui.done === 2
                       ? "El Taz pidió perdón (más o menos) · 🧁 +40"
-                      : "Le ganaste al Ratón a las escondidas · 🧁 +50"}
+                      : ui.done === 3
+                        ? "Le ganaste al Ratón a las escondidas · 🧁 +50"
+                        : "Koki se comió una reineta entera · 🧁 +60"}
                 </div>
                 <div className="text-[clamp(11px,2vw,18px)] mt-1 opacity-75">
                   {ui.done === 1
                     ? "Gufi tiene algo más que pedirte…"
                     : ui.done === 2
                       ? "El Ratón se está aburriendo…"
-                      : "Próximamente: la plaza y la feria del domingo…"}
+                      : ui.done === 3
+                        ? "Se abrió el camino a la plaza 👉"
+                        : "Continuará…"}
                 </div>
                 <div className="flex gap-2 justify-center mt-3">
                   <button

@@ -2,9 +2,9 @@
 // cumple el encargo de Gufi: hablar con Gufi, juntar los dos pastelitos escondidos, sacarle el tercero al
 // Taz y volver donde Gufi.
 import { expect, test } from "bun:test";
-import { newWorld, stepWorld, nearby, nearSpot, SPOTS, TILE } from "./world";
+import { newWorld, stepWorld, nearby, nearSpot, SPOTS, TILE, PIGEONS_GOAL } from "./world";
 
-const SOLID = new Set(["b", "w", "n", "T", "H", "s"]);
+const SOLID = new Set(["b", "w", "n", "T", "H", "s", "F", "B", "S"]);
 /* el camino más corto (por bloques) hasta un punto, esquivando lo sólido */
 function route(wd, tx, ty) {
   const sx = Math.floor(wd.x / TILE),
@@ -24,7 +24,15 @@ function route(wd, tx, ty) {
         ny = y + dy,
         k = nx + "," + ny;
       if (prev.has(k) || SOLID.has(wd.ground[ny]?.[nx] ?? "b")) continue;
-      if (wd.npcs.some((n) => Math.floor(n.x / TILE) === nx && Math.floor(n.y / TILE) === ny))
+      if (
+        wd.npcs.some(
+          (n) =>
+            n.map === wd.map &&
+            !n.hidden &&
+            Math.floor(n.x / TILE) === nx &&
+            Math.floor(n.y / TILE) === ny,
+        )
+      )
         continue;
       prev.set(k, [x, y]);
       q.push([nx, ny]);
@@ -40,7 +48,9 @@ function route(wd, tx, ty) {
 }
 /* camina hasta el bloque (tx, ty) apretando la cruceta */
 function walkTo(wd, tx, ty) {
+  const map = wd.map;
   for (const [x, y] of route(wd, tx, ty)) {
+    if (wd.map !== map) return; /* pasó por una salida a otro mapa */
     const cx = x * TILE + TILE / 2,
       cy = y * TILE + TILE / 2;
     for (let f = 0; f < 200 && (Math.abs(wd.x - cx) > 1 || Math.abs(wd.y - cy) > 1); f++)
@@ -154,4 +164,49 @@ test("el encargo de Gufi se puede cumplir", () => {
   expect(wd.quest).toBe(7);
   expect(wd.justDone).toBe(3);
   expect(raton.hidden).toBe(false);
+
+  /* encargo 4: a la plaza por la salida del camino; la Tía pide espantar palomas a cambio de una reineta */
+  walkTo(wd, 29, 9);
+  expect(wd.map).toBe("plaza");
+  const [px, py] = tileOf("tia", wd);
+  walkTo(wd, px, py + 1);
+  expect(talk(wd).who).toBe("tia");
+  expect(wd.quest).toBe(8);
+  let f = 0;
+  for (; f < 60 * 120 && wd.quest === 8; f++) {
+    /* va hacia la paloma sentada más cercana (si no hay, espera) */
+    const sitting = wd.pigeons.filter((p) => p.fly === 0);
+    if (!sitting.length) {
+      stepWorld(wd, { left: false, right: false, up: false, down: false, act: false }, false);
+      continue;
+    }
+    const p = sitting.reduce((a, b) =>
+      Math.hypot(a.x - wd.x, a.y - wd.y) < Math.hypot(b.x - wd.x, b.y - wd.y) ? a : b,
+    );
+    const next = route(wd, Math.floor(p.x / TILE), Math.floor(p.y / TILE))[0];
+    const gx = next ? next[0] * TILE + TILE / 2 : p.x,
+      gy = next ? next[1] * TILE + TILE / 2 : p.y;
+    stepWorld(
+      wd,
+      {
+        left: wd.x > gx + 1,
+        right: wd.x < gx - 1,
+        up: wd.y > gy + 1,
+        down: wd.y < gy - 1,
+        act: false,
+      },
+      false,
+    );
+  }
+  console.log(`palomas espantadas en ${(f / 60).toFixed(1)} s`);
+  expect(wd.scared).toBeGreaterThanOrEqual(PIGEONS_GOAL);
+  expect(wd.quest).toBe(9);
+  walkTo(wd, px, py + 1);
+  const end4 = talk(wd);
+  expect(end4.lines.join(" ")).toContain("reineta");
+  expect(wd.quest).toBe(10);
+  expect(wd.justDone).toBe(4);
+  /* y de vuelta al barrio por la otra salida */
+  walkTo(wd, 0, 9);
+  expect(wd.map).toBe("barrio");
 });

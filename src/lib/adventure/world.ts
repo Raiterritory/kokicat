@@ -1,9 +1,10 @@
-// Koki Adventure: el barrio de Koki visto desde arriba, la pandilla y el primer encargo. Sin dibujos: solo el
-// mapa, quién está dónde, el movimiento de Koki, con quién se puede hablar y qué dice cada uno según el encargo.
+// Koki Adventure: el barrio de Koki y la plaza vistos desde arriba, la pandilla y los encargos. Sin dibujos:
+// solo los mapas, quién está dónde, el movimiento de Koki, con quién se puede hablar y qué dice cada uno.
 //
-// El mapa es texto (una letra = un bloque de 16x16), así lo pueden leer también las consolas:
+// Los mapas son texto (una letra = un bloque de 16x16), así los pueden leer también las consolas:
 //   g pasto   f flores   p camino   w agua   b arbusto (borde)   n reja   T árbol (2x2)   H casa (4x3)   s letrero
-//   K donde parte Koki   G Gufi   R el Ratón   Z el Taz   c un pastelito escondido
+//   q baldosas   F pileta (4x4)   B banca   S puesto de la feria (3x2)   e salida a otro mapa
+//   K donde parte Koki   G Gufi   R el Ratón   Z el Taz   c un pastelito escondido   P la Tía del pescado   Q el Quiltro
 export const TILE = 16;
 
 export const BARRIO = [
@@ -16,7 +17,7 @@ export const BARRIO = [
   "bggggpggfgggggfggnnnnnnnnnnngb",
   "bgggfpgggggggggggfggfggggggggb",
   "bgffgpggGggggggggggggggfgggggb",
-  "bppppppppppppppppppppppppppppb",
+  "bppppppppppppppppppppppppppppe",
   "bggffgggggggfgggpggggggggggggb",
   "bggRggggggggggfgpggfgggggfgggb",
   "bgggfggggggfggggpgggggggTTgggb",
@@ -29,20 +30,55 @@ export const BARRIO = [
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 ];
 
-export type Who = "gufi" | "raton" | "taz";
-export type Npc = { who: Who; x: number; y: number; hidden?: boolean };
+/* la plaza: al otro lado del barrio, por el camino (se abre cuando el Ratón cuenta su secreto) */
+export const PLAZA = [
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "bgTTggggqqqSSSqqSSSqqgggTTgggb",
+  "bgTTgTTgqqqSSSqqSSSqqgggTTgggb",
+  "bggggTTgqqqqqqqqqPqqqgggggTTgb",
+  "bgggggggqqqqqqqqqqqqqgggggTTgb",
+  "bqqqqqqqqqqqqqqqqqqqqqqqqqqqqb",
+  "bqqqqqqqqqBBqqqqqqBBqqqqqqqqqb",
+  "bqqqqqqqqqqqqqqqqqqqqqqqqqqqqb",
+  "bqqqqqqqqqqqqFFFFqqqqqqqqqqqqb",
+  "eqqqqqqqqqqqqFFFFqqqqqqqqqqqqb",
+  "bqqqqqqqqqqqqFFFFqqqqqqqqqqqqb",
+  "bqqqqqqqqqqqqFFFFqqqqqqqqqqqqb",
+  "bqqqqqqqqqqqQqqqqqqqqqqqqqqqqb",
+  "bqqqqqqqqqBBqqqqqqBBqqqqqqqqqb",
+  "bgggggggqqqqqqqqqqqqqggggggggb",
+  "bgTTggggqqqqqqqqqqqqqggggTTggb",
+  "bgTTggggqqqqqqqqqqqqqggggTTggb",
+  "bgggggggqqqSSSqqSSSqqggggggggb",
+  "bgggggggqqqSSSqqSSSqqggggggggb",
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+];
+export const MAPS: Record<string, string[]> = { barrio: BARRIO, plaza: PLAZA };
+/* las salidas: de qué mapa a cuál, y dónde aparece Koki */
+const EXITS: Record<string, { to: string; tx: number; ty: number; face: -1 | 1 }> = {
+  barrio: { to: "plaza", tx: 1, ty: 9, face: 1 },
+  plaza: { to: "barrio", tx: 28, ty: 9, face: -1 },
+};
+
+export type Who = "gufi" | "raton" | "taz" | "tia" | "quiltro";
+export type Npc = { who: Who; map: string; x: number; y: number; hidden?: boolean };
+/* una paloma de la feria: picotea quieta o se va volando (fly > 0) */
+export type Pigeon = { x: number; y: number; fly: number; dir: -1 | 1 };
 export type Cake = { x: number; y: number; taken: boolean };
 export type Line = { who: Who | "koki" | "nadie"; text: string };
 /*
  * en qué va la historia:
  *   encargo 1, "Los pastelitos de Gufi": 0 sin empezar, 1 buscando, 2 terminado
  *   encargo 2, "Pilla al Taz":           3 persiguiéndolo, 4 te sigue de vuelta donde Gufi, 5 terminado
- *   encargo 3, "Las escondidas":         6 buscando al Ratón (3 veces), 7 terminado
+ *   encargo 3, "Las escondidas":         6 buscando al Ratón (3 veces), 7 terminado (se abre la plaza)
+ *   encargo 4, "La feria del domingo":   8 espantando palomas, 9 volver donde la Tía, 10 terminado
  */
 export type World = {
   w: number;
   h: number;
-  ground: string[];
+  map: string; /* dónde está Koki: "barrio" o "plaza" */
+  grounds: Record<string, string[]>;
+  ground: string[]; /* el suelo del mapa donde está Koki */
   x: number;
   y: number;
   face: -1 | 1;
@@ -60,12 +96,16 @@ export type World = {
   tazAsked: number;
   hideSpot: number; /* dónde está escondido el Ratón (índice en SPOTS) */
   hideRound: number; /* cuántas veces lo has encontrado */
+  pigeons: Pigeon[];
+  scared: number; /* palomas espantadas */
+  pigeonWait: number;
   talk: Line[] | null;
   page: number;
   events: string[];
 };
 
-const SOLID = new Set(["b", "w", "n", "T", "H", "s"]);
+const SOLID = new Set(["b", "w", "n", "T", "H", "s", "F", "B", "S"]);
+export const PIGEONS_GOAL = 10;
 const SPEED = 1.15;
 const TAZ_SPEED = 1.0; /* un poco más lento que Koki: se pilla acorralándolo */
 const TAZ_SEES = 80; /* desde qué distancia arranca */
@@ -113,7 +153,7 @@ export const SPOTS: { tx: number; ty: number; name: string; empty: string }[] = 
 const spotXY = (i: number) => [SPOTS[i].tx * TILE + TILE / 2, SPOTS[i].ty * TILE + TILE / 2];
 /* el escondite que Koki tiene al lado (para revisarlo con A), o -1 */
 export function nearSpot(wd: World) {
-  if (wd.quest !== 6) return -1;
+  if (wd.quest !== 6 || wd.map !== "barrio") return -1;
   let best = -1,
     bd = 22;
   SPOTS.forEach((_, i) => {
@@ -128,7 +168,7 @@ export function nearSpot(wd: World) {
 }
 /* ¿Koki está cerca del escondite de verdad? (las hojas se mueven) */
 export function rustle(wd: World) {
-  if (wd.quest !== 6 || wd.hideSpot < 0) return null;
+  if (wd.quest !== 6 || wd.hideSpot < 0 || wd.map !== "barrio") return null;
   const [x, y] = spotXY(wd.hideSpot);
   return Math.hypot(x - wd.x, y - wd.y) < 56 ? { x, y } : null;
 }
@@ -160,6 +200,8 @@ export function newWorld(): World {
   const wd: World = {
     w,
     h,
+    map: "barrio",
+    grounds: {},
     ground: [],
     x: 0,
     y: 0,
@@ -178,44 +220,52 @@ export function newWorld(): World {
     tazAsked: 0,
     hideSpot: -1,
     hideRound: 0,
+    pigeons: [],
+    scared: 0,
+    pigeonWait: 0,
     talk: null,
     page: 0,
     events: [],
   };
-  for (let ty = 0; ty < h; ty++) {
-    let row = "";
-    for (let tx = 0; tx < w; tx++) {
-      const c = BARRIO[ty][tx];
-      const cx = tx * TILE + TILE / 2,
-        cy = ty * TILE + TILE / 2;
-      if (c === "K") {
-        wd.x = cx;
-        wd.y = cy;
-        row += "p";
-      } else if (c === "G") {
-        wd.npcs.push({ who: "gufi", x: cx, y: cy });
-        row += "g";
-      } else if (c === "R") {
-        wd.npcs.push({ who: "raton", x: cx, y: cy });
-        row += "g";
-      } else if (c === "Z") {
-        wd.npcs.push({ who: "taz", x: cx, y: cy });
-        row += "g";
-      } else if (c === "c") {
-        wd.cakes.push({ x: cx, y: cy, taken: false });
-        row += "g";
-      } else row += c;
+  const WHO: Record<string, Who> = { G: "gufi", R: "raton", Z: "taz", P: "tia", Q: "quiltro" };
+  for (const [name, rows] of Object.entries(MAPS)) {
+    const ground: string[] = [];
+    for (let ty = 0; ty < h; ty++) {
+      let row = "";
+      for (let tx = 0; tx < w; tx++) {
+        const c = rows[ty][tx];
+        const cx = tx * TILE + TILE / 2,
+          cy = ty * TILE + TILE / 2;
+        const under = name === "plaza" ? "q" : "g";
+        if (c === "K") {
+          wd.x = cx;
+          wd.y = cy;
+          row += "p";
+        } else if (WHO[c]) {
+          wd.npcs.push({ who: WHO[c], map: name, x: cx, y: cy });
+          row += under;
+        } else if (c === "c") {
+          wd.cakes.push({ x: cx, y: cy, taken: false });
+          row += under;
+        } else row += c;
+      }
+      ground.push(row);
     }
-    wd.ground.push(row);
+    wd.grounds[name] = ground;
   }
+  wd.ground = wd.grounds.barrio;
   return wd;
 }
 
+/* la salida del barrio a la plaza está tapada por un arbusto hasta que el Ratón cuenta su secreto */
+export const exitOpen = (wd: World) => wd.map !== "barrio" || wd.quest >= 7;
 const solidAt = (wd: World, px: number, py: number) => {
   const tx = Math.floor(px / TILE),
     ty = Math.floor(py / TILE);
   if (tx < 0 || ty < 0 || tx >= wd.w || ty >= wd.h) return true;
-  return SOLID.has(wd.ground[ty][tx]);
+  const c = wd.ground[ty][tx];
+  if (c === "e") return !exitOpen(wd);
+  return SOLID.has(c);
 };
 /* ¿unos pies en (x, y) chocan con algo? (bloques sólidos o alguien más de la pandilla) */
 function blockedBy(wd: World, x: number, y: number, self: Npc | null) {
@@ -229,6 +279,7 @@ function blockedBy(wd: World, x: number, y: number, self: Npc | null) {
   return wd.npcs.some(
     (n) =>
       n !== self &&
+      n.map === wd.map &&
       !n.hidden &&
       !(n.who === "taz" && wd.quest === 4) &&
       Math.abs(n.x - x) < 12 &&
@@ -317,7 +368,7 @@ export function nearby(wd: World): Npc | null {
   let best: Npc | null = null,
     bd = 30;
   for (const n of wd.npcs) {
-    if (n.hidden) continue;
+    if (n.hidden || n.map !== wd.map) continue;
     const d = Math.hypot(n.x - wd.x, n.y - wd.y);
     if (d < bd) {
       bd = d;
@@ -411,6 +462,13 @@ function linesFor(wd: World, who: Who): Line[] {
         { who: "nadie", text: "🐭 El Ratón se esconde. Revisa los rincones del barrio con A." },
       ];
     }
+    if (wd.quest === 7)
+      return [
+        {
+          who: "raton",
+          text: "La plaza queda al final del camino, pa' la derecha. Ya saqué el arbusto que tapaba la pasada.",
+        },
+      ];
     if (wd.quest >= 7)
       return [
         { who: "raton", text: "La próxima me escondo en tu plato de comida. Ahí no vai a mirar." },
@@ -439,6 +497,64 @@ function linesFor(wd: World, who: Who): Line[] {
     if (wd.quest === 4)
       return [{ who: "raton", text: "Jajaja, mírenlo, todo humillado. Grabando pa' TikTok." }];
     return [{ who: "raton", text: "Me guardaron un pedacito, ¿cierto? ¿Cierto?" }];
+  }
+  if (who === "tia") {
+    if (wd.quest < 7)
+      return [{ who: "tia", text: "¡Pescado fresco, casero! ¡Reineta, merluza, jurel!" }];
+    if (wd.quest === 7) {
+      wd.quest = 8;
+      wd.scared = 0;
+      wd.pigeonWait = 0;
+      wd.events.push("quest");
+      return [
+        { who: "tia", text: "¿Un pescadito, gatito? Son tres lucas, mijo." },
+        { who: "koki", text: "Miau. (Koki no tiene bolsillos.)" },
+        {
+          who: "tia",
+          text: `Ya, hagamos un trato: estas palomas me tienen chata, se me suben al puesto. Espántame ${PIGEONS_GOAL} y te regalo una reineta.`,
+        },
+      ];
+    }
+    if (wd.quest === 8)
+      return [
+        { who: "tia", text: `Llevai ${wd.scared} de ${PIGEONS_GOAL}. ¡Ahí viene otra, ataca!` },
+      ];
+    if (wd.quest === 9) {
+      wd.quest = 10;
+      wd.justDone = 4;
+      wd.events.push("done");
+      return [
+        {
+          who: "tia",
+          text: "¡Bien, gatito! Nunca había tenido el puesto tan limpio. Toma tu reineta.",
+        },
+        { who: "koki", text: "MIAU. (Koki se come la reineta entera. Con espinas y todo.)" },
+        { who: "tia", text: "Vuelve el otro domingo, que te tengo un trabajito más." },
+      ];
+    }
+    return [
+      {
+        who: "tia",
+        text: "¿Otra vez por acá? El domingo que viene te guardo una cabeza de pescado.",
+      },
+    ];
+  }
+  if (who === "quiltro") {
+    if (wd.quest === 8)
+      return [
+        {
+          who: "quiltro",
+          text: "Las palomas le tienen miedo a los gatos, no a los quiltros. Injusto.",
+        },
+      ];
+    if (wd.quest >= 10)
+      return [
+        { who: "quiltro", text: "Oye, ¿y no sobró nada de esa reineta? Una espinita aunque sea." },
+      ];
+    return [
+      { who: "quiltro", text: "¿Voh soy el gato del pasaje? Aquí en la plaza mando yo." },
+      { who: "quiltro", text: "Bueno, la Tía manda. Yo dormito." },
+    ];
   }
   /* el Taz */
   if (wd.quest === 2) return [{ who: "taz", text: "Miau. (Se hace el leso.)" }];
@@ -482,6 +598,67 @@ function linesFor(wd: World, who: Who): Line[] {
 
 export type Pad = { up: boolean; down: boolean; left: boolean; right: boolean; act: boolean };
 
+/* las palomas de la feria: llegan de a una a picotear cerca de los puestos y se van volando si Koki se acerca */
+function pigeons(wd: World) {
+  for (const p of wd.pigeons) {
+    if (p.fly > 0) {
+      p.fly++;
+      p.y -= 1.4;
+      p.x += p.dir * 1.2;
+      continue;
+    }
+    if (wd.frame % 24 === 0)
+      p.dir = ((Math.imul(wd.frame + Math.round(p.x), 2654435761) >>> 0) & 1 ? 1 : -1) as -1 | 1;
+    if (wd.map === "plaza" && Math.hypot(p.x - wd.x, p.y - wd.y) < 20) {
+      p.fly = 1;
+      p.dir = p.x > wd.x ? 1 : -1;
+      if (wd.quest === 8) {
+        wd.scared++;
+        wd.events.push("pigeon");
+        if (wd.scared >= PIGEONS_GOAL) {
+          wd.quest = 9;
+          wd.events.push("quest");
+        }
+      }
+    }
+  }
+  wd.pigeons = wd.pigeons.filter((p) => p.fly < 60);
+  /* llega otra (hasta 4 a la vez, mientras falten) */
+  const sitting = wd.pigeons.filter((p) => p.fly === 0).length;
+  if (
+    wd.quest === 8 &&
+    sitting < 4 &&
+    sitting + wd.scared < PIGEONS_GOAL + 2 &&
+    ++wd.pigeonWait > 70
+  ) {
+    wd.pigeonWait = 0;
+    for (let k = 0; k < 12; k++) {
+      const r = Math.imul(wd.frame + k * 7919, 2654435761) >>> 0;
+      const tx = 8 + (r % 13),
+        ty = 3 + ((r >>> 8) % 13);
+      if ((wd.grounds.plaza[ty] ?? "")[tx] !== "q") continue;
+      const x = tx * TILE + TILE / 2,
+        y = ty * TILE + TILE / 2;
+      if (wd.map === "plaza" && Math.hypot(x - wd.x, y - wd.y) < 50) continue;
+      wd.pigeons.push({ x, y, fly: 0, dir: r & 1 ? 1 : -1 });
+      break;
+    }
+  }
+}
+/* pisar una salida lleva al otro mapa */
+function travel(wd: World) {
+  const tx = Math.floor(wd.x / TILE),
+    ty = Math.floor(wd.y / TILE);
+  if (wd.ground[ty]?.[tx] !== "e" || !exitOpen(wd)) return;
+  const ex = EXITS[wd.map];
+  wd.map = ex.to;
+  wd.ground = wd.grounds[ex.to];
+  wd.x = ex.tx * TILE + TILE / 2;
+  wd.y = ex.ty * TILE + TILE / 2;
+  wd.face = ex.face;
+  wd.events.push("map");
+}
+
 /* un paso (60 por segundo). act = se acaba de apretar el botón de acción */
 export function stepWorld(wd: World, pad: Pad, act: boolean) {
   wd.events = [];
@@ -506,13 +683,16 @@ export function stepWorld(wd: World, pad: Pad, act: boolean) {
   wd.moving = !!(dx || dy);
   if (wd.quest === 3) tazFlees(wd);
   else if (wd.quest === 4) tazFollows(wd);
+  if (wd.quest === 8 || wd.pigeons.length) pigeons(wd);
   if (wd.talk) return;
   if (dx) wd.face = dx > 0 ? 1 : -1;
   if (dx && !blocked(wd, wd.x + dx * SPEED, wd.y)) wd.x += dx * SPEED;
   if (dy && !blocked(wd, wd.x, wd.y + dy * SPEED)) wd.y += dy * SPEED;
+  travel(wd);
   /* pastelitos (solo cuentan si ya empezó el encargo) */
   for (const c of wd.cakes) {
-    if (c.taken || wd.quest !== 1 || Math.hypot(c.x - wd.x, c.y - wd.y) > 11) continue;
+    if (c.taken || wd.quest !== 1 || wd.map !== "barrio" || Math.hypot(c.x - wd.x, c.y - wd.y) > 11)
+      continue;
     c.taken = true;
     wd.found++;
     wd.events.push("cake");
