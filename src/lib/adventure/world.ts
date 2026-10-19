@@ -30,13 +30,14 @@ export const BARRIO = [
 ];
 
 export type Who = "gufi" | "raton" | "taz";
-export type Npc = { who: Who; x: number; y: number };
+export type Npc = { who: Who; x: number; y: number; hidden?: boolean };
 export type Cake = { x: number; y: number; taken: boolean };
 export type Line = { who: Who | "koki" | "nadie"; text: string };
 /*
  * en qué va la historia:
  *   encargo 1, "Los pastelitos de Gufi": 0 sin empezar, 1 buscando, 2 terminado
  *   encargo 2, "Pilla al Taz":           3 persiguiéndolo, 4 te sigue de vuelta donde Gufi, 5 terminado
+ *   encargo 3, "Las escondidas":         6 buscando al Ratón (3 veces), 7 terminado
  */
 export type World = {
   w: number;
@@ -57,6 +58,8 @@ export type World = {
   tazStuck: number;
   tazGave: boolean;
   tazAsked: number;
+  hideSpot: number; /* dónde está escondido el Ratón (índice en SPOTS) */
+  hideRound: number; /* cuántas veces lo has encontrado */
   talk: Line[] | null;
   page: number;
   events: string[];
@@ -67,6 +70,89 @@ const SPEED = 1.15;
 const TAZ_SPEED = 1.0; /* un poco más lento que Koki: se pilla acorralándolo */
 const TAZ_SEES = 80; /* desde qué distancia arranca */
 const BODY = 10; /* el cuerpo de Koki para chocar (los pies, 10x6 puntos) */
+
+/* los escondites del Ratón (en bloques), con lo que encuentras si no está ahí */
+export const SPOTS: { tx: number; ty: number; name: string; empty: string }[] = [
+  {
+    tx: 2,
+    ty: 2,
+    name: "detrás de la casa",
+    empty: "Detrás de la casa solo hay una pelota desinflada. Es tuya, de cuando eras guagua.",
+  },
+  {
+    tx: 9,
+    ty: 3,
+    name: "detrás del letrero",
+    empty: "Detrás del letrero hay un caracol. Te mira feo.",
+  },
+  {
+    tx: 14,
+    ty: 2,
+    name: "entre las flores",
+    empty: "Entre las flores hay una abeja que no tiene ganas de hablar contigo.",
+  },
+  {
+    tx: 28,
+    ty: 5,
+    name: "en la punta de la reja",
+    empty: "En la punta de la reja hay un calcetín. ¿De quién será? Mejor no saber.",
+  },
+  {
+    tx: 24,
+    ty: 14,
+    name: "debajo del árbol",
+    empty: "Debajo del árbol hay una piña. Bien piña tú, que no lo encontrai.",
+  },
+  {
+    tx: 7,
+    ty: 15,
+    name: "en los juncos del estanque",
+    empty: "En los juncos hay una rana. Croa. Tú maúllas. Quedan a mano.",
+  },
+];
+const spotXY = (i: number) => [SPOTS[i].tx * TILE + TILE / 2, SPOTS[i].ty * TILE + TILE / 2];
+/* el escondite que Koki tiene al lado (para revisarlo con A), o -1 */
+export function nearSpot(wd: World) {
+  if (wd.quest !== 6) return -1;
+  let best = -1,
+    bd = 22;
+  SPOTS.forEach((_, i) => {
+    const [x, y] = spotXY(i);
+    const d = Math.hypot(x - wd.x, y - wd.y);
+    if (d < bd) {
+      bd = d;
+      best = i;
+    }
+  });
+  return best;
+}
+/* ¿Koki está cerca del escondite de verdad? (las hojas se mueven) */
+export function rustle(wd: World) {
+  if (wd.quest !== 6 || wd.hideSpot < 0) return null;
+  const [x, y] = spotXY(wd.hideSpot);
+  return Math.hypot(x - wd.x, y - wd.y) < 56 ? { x, y } : null;
+}
+/* el Ratón se esconde en otro lugar (nunca dos veces seguidas en el mismo, ni al lado de Koki) */
+function hide(wd: World) {
+  const r = wd.npcs.find((n) => n.who === "raton")!;
+  r.hidden = true;
+  let i = wd.hideSpot;
+  for (
+    let k = 0;
+    k < 20 && (i === wd.hideSpot || Math.hypot(spotXY(i)[0] - wd.x, spotXY(i)[1] - wd.y) < 80);
+    k++
+  )
+    i = (Math.imul(wd.frame + k * 977 + wd.hideRound * 131, 2654435761) >>> 0) % SPOTS.length;
+  wd.hideSpot = i;
+}
+/* para dónde queda el escondite, visto desde quien da la pista */
+function towards(n: Npc, i: number) {
+  const [x, y] = spotXY(i),
+    dx = x - n.x,
+    dy = y - n.y;
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "pa' la derecha" : "pa' la izquierda";
+  return dy > 0 ? "pa' abajo" : "pa' arriba";
+}
 
 export function newWorld(): World {
   const h = BARRIO.length,
@@ -90,6 +176,8 @@ export function newWorld(): World {
     tazStuck: 0,
     tazGave: false,
     tazAsked: 0,
+    hideSpot: -1,
+    hideRound: 0,
     talk: null,
     page: 0,
     events: [],
@@ -141,6 +229,7 @@ function blockedBy(wd: World, x: number, y: number, self: Npc | null) {
   return wd.npcs.some(
     (n) =>
       n !== self &&
+      !n.hidden &&
       !(n.who === "taz" && wd.quest === 4) &&
       Math.abs(n.x - x) < 12 &&
       Math.abs(n.y - y) < 9,
@@ -228,6 +317,7 @@ export function nearby(wd: World): Npc | null {
   let best: Npc | null = null,
     bd = 30;
   for (const n of wd.npcs) {
+    if (n.hidden) continue;
     const d = Math.hypot(n.x - wd.x, n.y - wd.y);
     if (d < bd) {
       bd = d;
@@ -292,9 +382,39 @@ function linesFor(wd: World, who: Who): Line[] {
         { who: "gufi", text: "Trato hecho. 🐾" },
       ];
     }
+    if (wd.quest === 6) {
+      const n = wd.npcs.find((p) => p.who === "gufi")!;
+      return [
+        {
+          who: "gufi",
+          text: `¿El Ratón? Sentí un ruido ${towards(n, wd.hideSpot)}… o eran mis tripas.`,
+        },
+      ];
+    }
     return [{ who: "gufi", text: "Tamos todos en paz. Por ahora." }];
   }
   if (who === "raton") {
+    if (wd.quest === 5) {
+      wd.quest = 6;
+      wd.hideRound = 0;
+      wd.events.push("quest");
+      hide(wd);
+      return [
+        {
+          who: "raton",
+          text: "Oye, Koki, me aburro. ¿Juguemos a las escondidas? Yo me escondo, tú buscai.",
+        },
+        {
+          who: "raton",
+          text: "Tres veces. Si me encontrai las tres, te doy mi mejor secreto. Cuento hasta tres y… ¡chao!",
+        },
+        { who: "nadie", text: "🐭 El Ratón se esconde. Revisa los rincones del barrio con A." },
+      ];
+    }
+    if (wd.quest >= 7)
+      return [
+        { who: "raton", text: "La próxima me escondo en tu plato de comida. Ahí no vai a mirar." },
+      ];
     if (wd.quest === 0)
       return [{ who: "raton", text: "Gufi anda llorando por algo. Anda a ver qué le pasa." }];
     if (wd.quest === 1)
@@ -324,6 +444,15 @@ function linesFor(wd: World, who: Who): Line[] {
   if (wd.quest === 2) return [{ who: "taz", text: "Miau. (Se hace el leso.)" }];
   if (wd.quest === 3) return [{ who: "taz", text: "¡No me pillai, gil!" }];
   if (wd.quest === 4) return [{ who: "taz", text: "Ya, ya, voy… no me apurí." }];
+  if (wd.quest === 6) {
+    const t = tazOf(wd);
+    return [
+      {
+        who: "taz",
+        text: `Lo vi correr ${towards(t, wd.hideSpot)}. No le digai que te dije, que me debe plata.`,
+      },
+    ];
+  }
   if (wd.quest >= 5) return [{ who: "taz", text: "Miau. (Ofendido, pero en paz.)" }];
   if (wd.quest !== 1) return [{ who: "taz", text: "Miau. (Te mira raro.)" }];
   if (wd.tazGave) return [{ who: "taz", text: "Ya te lo pasé, ¿qué más querí?" }];
@@ -388,13 +517,50 @@ export function stepWorld(wd: World, pad: Pad, act: boolean) {
     wd.found++;
     wd.events.push("cake");
   }
-  /* hablar */
+  /* hablar (o, jugando a las escondidas, revisar el rincón de al lado) */
   if (act) {
     const n = nearby(wd);
+    const spot = nearSpot(wd);
     if (n) {
       wd.talk = linesFor(wd, n.who);
       wd.page = 0;
       wd.events.push("talk");
+    } else if (spot >= 0) {
+      wd.page = 0;
+      if (spot !== wd.hideSpot) wd.talk = [{ who: "nadie", text: SPOTS[spot].empty }];
+      else {
+        wd.hideRound++;
+        wd.events.push("found");
+        if (wd.hideRound < 3) {
+          wd.talk = [
+            {
+              who: "raton",
+              text:
+                wd.hideRound === 1
+                  ? "¡Chuta! Me pillaste. Pero fue suerte. Otra vez."
+                  : "¡Ya, ya! Última. Esta vez no me encontrai ni con GPS.",
+            },
+          ];
+          hide(wd);
+        } else {
+          const r = wd.npcs.find((p) => p.who === "raton")!;
+          r.hidden = false;
+          wd.quest = 7;
+          wd.justDone = 3;
+          wd.events.push("done");
+          wd.talk = [
+            {
+              who: "raton",
+              text: "¡Ya po! Tres de tres. Teni olfato de perro, y eso que eres gato.",
+            },
+            {
+              who: "raton",
+              text: "Mi mejor secreto: al otro lado del barrio hay una plaza… y en la plaza hay feria los domingos. 👀",
+            },
+            { who: "koki", text: "Miau. (Koki anota mentalmente: feria. Pescado. Domingo.)" },
+          ];
+        }
+      }
     }
   }
 }

@@ -2,7 +2,7 @@
 // cumple el encargo de Gufi: hablar con Gufi, juntar los dos pastelitos escondidos, sacarle el tercero al
 // Taz y volver donde Gufi.
 import { expect, test } from "bun:test";
-import { newWorld, stepWorld, nearby, TILE } from "./world";
+import { newWorld, stepWorld, nearby, nearSpot, SPOTS, TILE } from "./world";
 
 const SOLID = new Set(["b", "w", "n", "T", "H", "s"]);
 /* el camino más corto (por bloques) hasta un punto, esquivando lo sólido */
@@ -127,4 +127,31 @@ test("el encargo de Gufi se puede cumplir", () => {
   expect(sorry.lines.join(" ")).toContain("Perdón");
   expect(wd.quest).toBe(5);
   expect(wd.justDone).toBe(2);
+
+  /* encargo 3: las escondidas del Ratón (tres veces) */
+  const raton = wd.npcs.find((n) => n.who === "raton");
+  const [rx, ry] = [Math.floor(raton.x / TILE), Math.floor(raton.y / TILE)];
+  walkTo(wd, rx + 1, ry);
+  expect(talk(wd).who).toBe("raton");
+  expect(wd.quest).toBe(6);
+  expect(raton.hidden).toBe(true);
+  /* un rincón equivocado: un texto chistoso y nada más */
+  const wrong = SPOTS.findIndex((_, i) => i !== wd.hideSpot);
+  walkTo(wd, SPOTS[wrong].tx, SPOTS[wrong].ty);
+  expect(nearSpot(wd)).toBe(wrong);
+  expect(talk(wd).lines[0]).toBe(SPOTS[wrong].empty);
+  expect(wd.hideRound).toBe(0);
+  const seen = [];
+  for (let round = 0; round < 3; round++) {
+    const i = wd.hideSpot;
+    seen.push(SPOTS[i].name);
+    walkTo(wd, SPOTS[i].tx, SPOTS[i].ty);
+    talk(wd);
+    expect(wd.hideRound).toBe(round + 1);
+  }
+  console.log(`escondites: ${seen.join(", ")}`);
+  expect(new Set(seen).size).toBeGreaterThan(1);
+  expect(wd.quest).toBe(7);
+  expect(wd.justDone).toBe(3);
+  expect(raton.hidden).toBe(false);
 });

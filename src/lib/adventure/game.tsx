@@ -9,7 +9,18 @@ import tazPng from "@/assets/gato-negro.png";
 import logoImg from "@/assets/koki-adventure-logo.png";
 import pixelFont from "@/assets/PixelifySans.ttf?url"; /* SIL Open Font License (PixelifySans-OFL.txt) */
 import { playFlap, playMeow } from "@/lib/sounds";
-import { newWorld, stepWorld, nearby, TILE, type World, type Pad, type Line } from "./world";
+import {
+  newWorld,
+  stepWorld,
+  nearby,
+  nearSpot,
+  rustle,
+  SPOTS,
+  TILE,
+  type World,
+  type Pad,
+  type Line,
+} from "./world";
 import { paintBarrio, paintSprites, paintCake } from "./art";
 
 const VW = 240,
@@ -43,6 +54,7 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
     page: 0,
     quest: 0,
     found: 0,
+    seek: 0 /* cuántas veces encontraste al Ratón */,
     done: 0 /* el encargo recién cumplido (muestra su cartel) */,
   });
 
@@ -106,18 +118,19 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
         };
         const act = pad.act && !prevAct;
         prevAct = pad.act;
-        const before = `${!!wd.talk}${wd.page}${wd.quest}${wd.found}`;
+        const before = `${!!wd.talk}${wd.page}${wd.quest}${wd.found}${wd.hideRound}`;
         stepWorld(wd, pad, act);
         for (const ev of wd.events) {
-          if (ev === "cake") playFlap();
+          if (ev === "cake" || ev === "found") playFlap();
           else if (ev === "done" || ev === "quest" || ev === "caught") playMeow();
         }
-        if (`${!!wd.talk}${wd.page}${wd.quest}${wd.found}` !== before)
+        if (`${!!wd.talk}${wd.page}${wd.quest}${wd.found}${wd.hideRound}` !== before)
           setUi({
             talk: wd.talk,
             page: wd.page,
             quest: wd.quest,
             found: wd.found,
+            seek: wd.hideRound,
             done: !wd.talk ? wd.justDone : 0,
           });
       }
@@ -143,24 +156,33 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
               },
             });
       for (const n of wd.npcs)
-        things.push({
-          y: n.y,
-          draw: () => {
-            shadow(n.x, n.y);
-            const idle = Math.floor((wd.frame + n.x) / 40) % 2;
-            ctx.drawImage(spr[n.who][idle], Math.round(n.x - 8 - camX), Math.round(n.y - 9 - camY));
-            /* Gufi tiene un encargo nuevo (antes del primero y del segundo) */
-            if (n.who === "gufi" && (wd.quest === 0 || wd.quest === 2) && nearby(wd) !== n) {
-              /* el "!" de quien tiene un encargo */
-              const by = Math.round(n.y - 22 - camY + Math.sin(wd.frame * 0.1) * 1.5);
-              ctx.fillStyle = "#3b2a1a";
-              ctx.fillRect(n.x - 2 - camX, by - 1, 5, 10);
-              ctx.fillStyle = "#ffe14d";
-              ctx.fillRect(n.x - 1 - camX, by, 3, 5);
-              ctx.fillRect(n.x - 1 - camX, by + 6, 3, 2);
-            }
-          },
-        });
+        if (!n.hidden)
+          things.push({
+            y: n.y,
+            draw: () => {
+              shadow(n.x, n.y);
+              const idle = Math.floor((wd.frame + n.x) / 40) % 2;
+              ctx.drawImage(
+                spr[n.who][idle],
+                Math.round(n.x - 8 - camX),
+                Math.round(n.y - 9 - camY),
+              );
+              /* el "!" de quien tiene un encargo nuevo: Gufi (el 1 y el 2) y el Ratón (el 3) */
+              const ask =
+                n.who === "gufi"
+                  ? wd.quest === 0 || wd.quest === 2
+                  : n.who === "raton" && wd.quest === 5;
+              if (ask && nearby(wd) !== n) {
+                /* el "!" de quien tiene un encargo */
+                const by = Math.round(n.y - 22 - camY + Math.sin(wd.frame * 0.1) * 1.5);
+                ctx.fillStyle = "#3b2a1a";
+                ctx.fillRect(n.x - 2 - camX, by - 1, 5, 10);
+                ctx.fillStyle = "#ffe14d";
+                ctx.fillRect(n.x - 1 - camX, by, 3, 5);
+                ctx.fillRect(n.x - 1 - camX, by + 6, 3, 2);
+              }
+            },
+          });
       things.push({
         y: wd.y,
         draw: () => {
@@ -174,11 +196,29 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
         },
       });
       things.sort((a, b) => a.y - b.y).forEach((t) => t.draw());
-      /* "A" sobre quien se puede hablar */
+      /* jugando a las escondidas: las hojas se mueven cerca del escondite de verdad */
+      const r = !wd.talk && rustle(wd);
+      if (r && Math.floor(wd.frame / 6) % 2) {
+        ctx.fillStyle = "#e9ffd9";
+        for (const [ox, oy] of [
+          [-7, -6],
+          [6, -8],
+          [-2, -11],
+          [8, -2],
+        ])
+          ctx.fillRect(Math.round(r.x + ox - camX), Math.round(r.y + oy - camY), 2, 1);
+      }
+      /* "A" sobre quien se puede hablar (o el rincón que se puede revisar) */
       const near = !wd.talk && nearby(wd);
-      if (near) {
-        const bx = Math.round(near.x - camX),
-          by = Math.round(near.y - 24 - camY);
+      const spot = !wd.talk && !near ? nearSpot(wd) : -1;
+      const target = near
+        ? near
+        : spot >= 0
+          ? { x: SPOTS[spot].tx * TILE + TILE / 2, y: SPOTS[spot].ty * TILE + TILE / 2 + 6 }
+          : null;
+      if (target) {
+        const bx = Math.round(target.x - camX),
+          by = Math.round(target.y - 24 - camY);
         ctx.fillStyle = "#1a1030";
         ctx.fillRect(bx - 5, by - 5, 11, 10);
         ctx.fillStyle = "#fff";
@@ -200,7 +240,7 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
 
   const start = () => {
     worldRef.current = newWorld();
-    setUi({ talk: null, page: 0, quest: 0, found: 0, done: 0 });
+    setUi({ talk: null, page: 0, quest: 0, found: 0, seek: 0, done: 0 });
     setScreen("playing");
   };
   const hold = (key: keyof Pad) => ({
@@ -272,6 +312,11 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
                   <>
                     📜 <span className="text-[#ffe14d]">Encargo:</span> lleva al Taz donde Gufi
                   </>
+                ) : ui.quest === 6 ? (
+                  <>
+                    📜 <span className="text-[#ffe14d]">Encargo:</span> encuentra al Ratón · 🐭{" "}
+                    {ui.seek}/3
+                  </>
                 ) : (
                   <>✅ Encargo cumplido</>
                 )}
@@ -309,10 +354,16 @@ export function AdventureGame({ onExit }: { onExit?: () => void }) {
                 <div className="text-[clamp(12px,2.4vw,22px)] mt-1">
                   {ui.done === 1
                     ? "Gufi tiene su once (casi entera) · 🧁 +30"
-                    : "El Taz pidió perdón (más o menos) · 🧁 +40"}
+                    : ui.done === 2
+                      ? "El Taz pidió perdón (más o menos) · 🧁 +40"
+                      : "Le ganaste al Ratón a las escondidas · 🧁 +50"}
                 </div>
                 <div className="text-[clamp(11px,2vw,18px)] mt-1 opacity-75">
-                  {ui.done === 1 ? "Gufi tiene algo más que pedirte…" : "Continuará…"}
+                  {ui.done === 1
+                    ? "Gufi tiene algo más que pedirte…"
+                    : ui.done === 2
+                      ? "El Ratón se está aburriendo…"
+                      : "Próximamente: la plaza y la feria del domingo…"}
                 </div>
                 <div className="flex gap-2 justify-center mt-3">
                   <button
