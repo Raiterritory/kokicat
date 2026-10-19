@@ -73,6 +73,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "coins-1000", icon: "🎂", name: "Pastelera", desc: "Junta 1000 pastelitos en total", progress: goal((s) => s.coins, 1000) },
   { id: "boss-10", icon: "👑", name: "Exterminador", desc: "Derrota 10 jefes", progress: goal((s) => s.bosses, 10) },
   { id: "hard-50", icon: "🌋", name: "Infierno", desc: "Haz 50 puntos en modo difícil", progress: goal((s) => s.bestHard, 50) },
+  { id: "hard-64", icon: "🎮", name: "Leyenda de 8 bits", desc: "Haz 64 puntos en modo difícil", progress: goal((s) => s.bestHard, 64) },
   { id: "score-75", icon: "🛸", name: "Fuera de órbita", desc: "Haz 75 puntos en una partida", progress: goal((s) => s.bestNormal, 75) },
   { id: "taz-80", icon: "🥇", name: "Maestro del Taz", desc: "Haz 80 puntos en Atrapa al Taz", progress: goal((s) => s.tazBest, 80) },
   { id: "score-100", icon: "🌟", name: "Leyenda felina", desc: "Haz 100 puntos en una partida", progress: goal((s) => s.bestNormal, 100) },

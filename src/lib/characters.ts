@@ -4,6 +4,7 @@ import gatoNegroPng from "@/assets/gato-negro.png";
 import bolaNievePng from "@/assets/bola-nieve.png";
 import gufiAsset from "@/assets/gufi.png.asset.json";
 import ratonAsset from "@/assets/raton.png.asset.json";
+import kokiPixeladoPng from "@/assets/koki-pixelado.png";
 import type { SkinFx } from "./character-skins";
 
 export type Character = {
@@ -53,6 +54,8 @@ export const CHARACTERS: Character[] = [
   { id: "gufi-trasnochao", name: "Gufi Trasnochao", url: gufiAsset.url, price: 0, base: "gufi", fx: "lunar", achievement: "streak-7" },
   { id: "raton-patiperro", name: "Ratón Patiperro", url: ratonAsset.url, price: 0, base: "raton", fx: "arena", achievement: "missions-5" },
   { id: "bola-cuatica", name: "Bola Cuática", url: bolaNievePng, price: 0, base: "bola-nieve", fx: "aurora", achievement: "daily-10" },
+  // el sprite de Koki de la versión de Game Boy Color: el reto más difícil
+  { id: "koki-pixelado", name: "Koki Pixelado", url: kokiPixeladoPng, price: 0, base: "koki", achievement: "hard-64" },
 ];
 
 export const CHAR_BY_ID: Record<string, Character> = Object.fromEntries(
