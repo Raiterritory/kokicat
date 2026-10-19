@@ -72,7 +72,7 @@ export const Route = createFileRoute("/")({
 });
 
 // Horario de la versión web (hora de Chile): abierta de 10:00 a 21:00.
-// Fuera de ese rango se muestra una pantalla de "cerrado".
+// Fuera de ese rango se muestra solo una pantalla de un color, sin ningún aviso.
 const WEB_OPEN_HOUR = 10;
 const WEB_CLOSE_HOUR = 21;
 function chileHour(): number {
@@ -97,20 +97,8 @@ function WebHoursGate() {
     return () => clearInterval(t);
   }, []);
   if (open) return <Game />;
-  return (
-    <div style={{
-      position: "fixed", inset: 0, display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", gap: 16, background: "linear-gradient(180deg,#1a2340 0%,#0d1226 100%)",
-      color: "#fff", fontFamily: "system-ui, sans-serif", textAlign: "center", padding: 24,
-    }}>
-      <div style={{ fontSize: 64 }}>🌙</div>
-      <h1 style={{ fontSize: 28, margin: 0 }}>KokiCat está durmiendo</h1>
-      <p style={{ fontSize: 16, opacity: 0.85, maxWidth: 420, margin: 0 }}>
-        La versión web está disponible todos los días de <b>10:00 a 21:00</b> (hora de Chile).
-        Vuelve más tarde, o juega cuando quieras desde la app de Android. 🐱
-      </p>
-    </div>
-  );
+  // Sin avisos ni texto: solo una pantalla de un color hasta que vuelve a abrir.
+  return <div style={{ position: "fixed", inset: 0, background: "#0d1226" }} />;
 }
 
 
