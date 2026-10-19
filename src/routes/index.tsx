@@ -68,8 +68,47 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Game,
+  component: WebHoursGate,
 });
+
+// Horario de la versión web (hora de Chile): abierta de 10:00 a 21:00.
+// Fuera de ese rango se muestra una pantalla de "cerrado".
+const WEB_OPEN_HOUR = 10;
+const WEB_CLOSE_HOUR = 21;
+function chileHour(): number {
+  try {
+    return Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Santiago", hour: "numeric", hour12: false }).format(Date.now())) % 24;
+  } catch {
+    return new Date().getHours();
+  }
+}
+const webIsOpen = () => {
+  const h = chileHour();
+  return h >= WEB_OPEN_HOUR && h < WEB_CLOSE_HOUR;
+};
+
+function WebHoursGate() {
+  const [open, setOpen] = useState(webIsOpen);
+  useEffect(() => {
+    const t = setInterval(() => setOpen(webIsOpen()), 30000);
+    return () => clearInterval(t);
+  }, []);
+  if (open) return <Game />;
+  return (
+    <div style={{
+      position: "fixed", inset: 0, display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", gap: 16, background: "linear-gradient(180deg,#1a2340 0%,#0d1226 100%)",
+      color: "#fff", fontFamily: "system-ui, sans-serif", textAlign: "center", padding: 24,
+    }}>
+      <div style={{ fontSize: 64 }}>🌙</div>
+      <h1 style={{ fontSize: 28, margin: 0 }}>KokiCat está durmiendo</h1>
+      <p style={{ fontSize: 16, opacity: 0.85, maxWidth: 420, margin: 0 }}>
+        La versión web está disponible todos los días de <b>10:00 a 21:00</b> (hora de Chile).
+        Vuelve más tarde, o juega cuando quieras desde la app de Android. 🐱
+      </p>
+    </div>
+  );
+}
 
 
 // Fisica estilo Flappy Bird: gravedad constante, impulso fijo, sin drag
