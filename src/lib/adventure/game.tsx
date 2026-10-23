@@ -2,9 +2,9 @@
 // WASD, la cruceta de un control o la de la pantalla; se habla con A, espacio o Enter (o el botón A de la
 // pantalla). Las reglas y los diálogos están en world.ts; los dibujos en art.ts.
 import { useEffect, useRef, useState } from "react";
-import kokiAsset from "@/assets/koki-real.png.asset.json";
-import gufiAsset from "@/assets/gufi.png.asset.json";
-import ratonAsset from "@/assets/raton.png.asset.json";
+import kokiPng from "@/assets/koki-real.png";
+import gufiPng from "@/assets/gufi.png";
+import ratonPng from "@/assets/raton.png";
 import tazPng from "@/assets/gato-negro.png";
 import logoImg from "@/assets/koki-adventure-logo.png";
 import pixelFont from "@/assets/PixelifySans.ttf?url"; /* SIL Open Font License (PixelifySans-OFL.txt) */
@@ -67,10 +67,10 @@ const NAMES: Record<Line["who"], string> = {
   nadie: "",
 };
 const FACES: Partial<Record<Line["who"], { src: string; pos: string; size: string }>> = {
-  gufi: { src: gufiAsset.url, pos: "62% 30%", size: "230%" },
-  raton: { src: ratonAsset.url, pos: "70% 30%", size: "190%" },
+  gufi: { src: gufiPng, pos: "62% 30%", size: "230%" },
+  raton: { src: ratonPng, pos: "70% 30%", size: "190%" },
   taz: { src: tazPng, pos: "55% 25%", size: "160%" },
-  koki: { src: kokiAsset.url, pos: "72% 22%", size: "210%" },
+  koki: { src: kokiPng, pos: "72% 22%", size: "210%" },
 };
 /* las fotos subidas a Lovable (/__l5e/…) no existen en la copia local de desarrollo: ahí se piden a la web publicada */
 const withFallback = (src: string) =>

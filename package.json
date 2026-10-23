@@ -10,7 +10,8 @@
     "build:static": "node scripts/build-static.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "bun test"
   },
   "dependencies": {
     "@capacitor-community/file-opener": "^8.0.1",

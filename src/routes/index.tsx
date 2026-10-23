@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
-import menuLogo from "@/assets/koki-menu-logo.png.asset.json";
+import menuLogo from "@/assets/koki-menu-logo.png";
 import pastelitoImg from "@/assets/pastelito.png";
 import bossPng from "@/assets/boss.png";
 import claudeIcon from "@/assets/claude-icon.png";
@@ -20,6 +20,8 @@ import {
   bossHits,
   drawBossAttacks,
   BOSS_KINDS,
+  BOSS_HINTS,
+  type BossKind,
   type BossState,
 } from "@/lib/bossfight";
 import {
@@ -34,6 +36,7 @@ import { drawTrail, type TrailPoint } from "@/lib/trails";
 import { MissionsModal, DailyBoard, DailyBoardModal, StyleShop, OutfitPreview } from "@/lib/progress-ui";
 import { drawSkinCharacter, SkinPreview } from "@/lib/character-skins";
 import { CHARACTERS, CHAR_BY_ID } from "@/lib/characters";
+import { charactersForCode } from "@/lib/secret-codes";
 import { syncScores, syncScoresExact, syncSkin, backupProfile, loadRivals, type BoardRow, type BoardMode } from "@/lib/leaderboard";
 import { LeaderboardModal, GameOverFriends, type Tab as BoardTab } from "@/lib/leaderboard-ui";
 import {
@@ -57,6 +60,14 @@ import {
   getMusicVolume, getSfxVolume,
 } from "@/lib/sounds";
 import { webIsOpen } from "@/lib/web-hours";
+
+// Botones de "Probar el jefe" en Opciones (para ver cada ataque sin esperar 15 puntos)
+const BOSS_TEST_LABEL: Record<BossKind, string> = {
+  rayo: "⚡ Rayo",
+  tubos: "🟢 Tubos",
+  muro: "🧱 Muro",
+  bombas: "💣 Bombas",
+};
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -184,6 +195,9 @@ function Game() {
   const [mode, setMode] = useState<Mode>("normal");
   const [debugPass, setDebugPass] = useState("");
   const [debugMsg, setDebugMsg] = useState("");
+  // código secreto de Personajes (ej: "hola manu" abre las variantes pixeladas)
+  const [codeInput, setCodeInput] = useState("");
+  const [codeMsg, setCodeMsg] = useState("");
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugUnlocked, setDebugUnlocked] = useState(false);
   const [confirmWipe, setConfirmWipe] = useState(false);
@@ -208,6 +222,11 @@ function Game() {
   const [streakDays, setStreakDays] = useState(0);
   const [claimable, setClaimable] = useState(0);
   const [dailyDone, setDailyDone] = useState(false);
+  // pausa: congela la partida sin cambiar de estado (así el HUD y el mundo quedan tal cual)
+  const [paused, setPaused] = useState(false);
+  const [resumeIn, setResumeIn] = useState(0);
+  const pausedRef = useRef(false);
+  const resumeTimer = useRef<number | null>(null);
   const styleRef = useRef(loadStyle());
   useEffect(() => {
     const refreshProgress = () => {
@@ -275,7 +294,69 @@ function Game() {
   const rivalsRef = useRef<BoardRow[]>([]);
   const rngRef = useRef<() => number>(Math.random);
   const bossRngRef = useRef<() => number>(Math.random);
+  // "Probar el jefe" (Opciones): obliga a que el próximo jefe sea el elegido
+  const bossTestRef = useRef<BossKind | null>(null);
   const mp = useMp();
+
+  /* --- pausa: se congela el mundo y la música, y al volver hay cuenta atrás --- */
+  const clearResumeTimer = useCallback(() => {
+    if (resumeTimer.current !== null) {
+      window.clearInterval(resumeTimer.current);
+      resumeTimer.current = null;
+    }
+    setResumeIn(0);
+  }, []);
+
+  /** cancela la cuenta atrás y vuelve a dejar la música en pausa */
+  const cancelResume = useCallback(() => {
+    const wasCounting = resumeTimer.current !== null;
+    clearResumeTimer();
+    if (wasCounting) {
+      stopMusic();
+      musicStartedRef.current = false;
+    }
+  }, [clearResumeTimer]);
+
+  const pauseGame = useCallback(() => {
+    if (stateRef.current !== "playing" || pausedRef.current) return;
+    // en las partidas en vivo no se pausa: la ronda es de todos
+    if (getMp().match) return;
+    pausedRef.current = true;
+    setPaused(true);
+    clearResumeTimer();
+    stopMusic();
+    // para que kickMusic/startMusic vuelvan a arrancar la música al seguir
+    musicStartedRef.current = false;
+  }, [clearResumeTimer]);
+
+  const resumeGame = useCallback(() => {
+    if (!pausedRef.current || resumeTimer.current !== null) return;
+    // la música parte con el toque (el navegador exige un gesto) y sigue durante la cuenta atrás
+    void startMusic().then((ok) => { if (ok) musicStartedRef.current = true; });
+    // cuenta atrás 3, 2, 1 antes de devolver el control
+    setResumeIn(3);
+    let n = 3;
+    resumeTimer.current = window.setInterval(() => {
+      n--;
+      if (n <= 0) {
+        if (resumeTimer.current !== null) window.clearInterval(resumeTimer.current);
+        resumeTimer.current = null;
+        setResumeIn(0);
+        pausedRef.current = false;
+        setPaused(false);
+      } else {
+        setResumeIn(n);
+      }
+    }, 700);
+  }, []);
+
+  const togglePause = useCallback(() => {
+    if (stateRef.current !== "playing") return;
+    // si está corriendo la cuenta atrás, se cancela y se queda en pausa
+    if (resumeTimer.current !== null) { cancelResume(); return; }
+    if (pausedRef.current) resumeGame();
+    else pauseGame();
+  }, [cancelResume, pauseGame, resumeGame]);
 
   const sizeRef = useRef({ w: WORLD_W, h: WORLD_H });
   // tamaño real de la pantalla (CSS px) y densidad de pixeles
@@ -375,6 +456,9 @@ function Game() {
   }, []);
 
   const reset = () => {
+    clearResumeTimer();
+    pausedRef.current = false;
+    setPaused(false);
     const { h } = sizeRef.current;
     gameRef.current = {
       y: h / 2, vy: 0, pipes: [], coins: [],
@@ -433,6 +517,8 @@ function Game() {
     // cada partida parte con un fondo distinto al azar (desde "¿Listo?" ya se eligió)
     if (stateRef.current !== "ready") randomizeScenery();
     reset();
+    // prueba del jefe: aparece apenas pasas la primera tubería (no cambia el resto de la partida)
+    if (bossTestRef.current) gameRef.current.nextBoss = 1;
     rivalsRef.current = [];
     rngRef.current = seed == null ? Math.random : seededRandom(seed);
     inMatch = seed != null;
@@ -466,9 +552,18 @@ function Game() {
     playFlap();
   }, [kickMusic]);
 
+  /** Opciones → "Probar el jefe": arranca una partida con ese jefe tras la primera tubería. */
+  const testBoss = (kind: BossKind) => {
+    bossTestRef.current = kind;
+    setShowSettings(false);
+    startGame();
+  };
+
   const flap = useCallback(() => {
     const s = stateRef.current;
     if (s === "menu" || s === "characters") return;
+    // en pausa (o en la cuenta atrás) no se aletea
+    if (pausedRef.current) return;
     if (s === "ready") {
       startGame();
     } else if (s === "playing") {
@@ -513,6 +608,8 @@ function Game() {
     onAction: () => {
       const s = stateRef.current;
       if (s !== "ready" && s !== "playing") return false;
+      // en pausa, ✕ navega los botones del menú de pausa
+      if (pausedRef.current) return false;
       flap();
       return true;
     },
@@ -526,11 +623,34 @@ function Game() {
       if (e.code === "Space" || e.code === "ArrowUp") {
         e.preventDefault();
         flap();
+        return;
+      }
+      // P o Esc: pausa / seguir (Esc también cierra las opciones)
+      if (e.code === "KeyP" || e.code === "Escape") {
+        if (showSettings) { if (e.code === "Escape") setShowSettings(false); return; }
+        if (stateRef.current === "playing") {
+          e.preventDefault();
+          togglePause();
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [flap]);
+  }, [flap, showSettings, togglePause]);
+
+  // si la pestaña pasa a segundo plano (o se minimiza la app), se pausa sola
+  useEffect(() => {
+    const onHidden = () => {
+      if (!document.hidden || stateRef.current !== "playing") return;
+      cancelResume();
+      pauseGame();
+    };
+    document.addEventListener("visibilitychange", onHidden);
+    return () => {
+      document.removeEventListener("visibilitychange", onHidden);
+      cancelResume();
+    };
+  }, [cancelResume, pauseGame]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -594,11 +714,14 @@ function Game() {
       });
       drawRain(ctx, WIDTH, HEIGHT - GROUND_H, scene, g.frame);
 
-      g.frame++;
-      g.scroll += g.speed;
-      if (g.flap > 0) g.flap = Math.max(0, g.flap - 0.06);
+      // en pausa el mundo queda congelado: no corre el tiempo ni la física
+      if (!pausedRef.current) {
+        g.frame++;
+        g.scroll += g.speed;
+        if (g.flap > 0) g.flap = Math.max(0, g.flap - 0.06);
+      }
 
-      if (stateRef.current === "playing") {
+      if (stateRef.current === "playing" && !pausedRef.current) {
         // velocidad: constante en normal, creciente en dificil
         g.speed = modeRef.current === "hard"
           ? Math.min(HARD_MAX_SPEED, HARD_START + g.score * HARD_SPEED_PER_POINT)
@@ -751,9 +874,11 @@ function Game() {
         // --- JEFE: aparece cada BOSS_EVERY puntos (no en contrarreloj) ---
         if (!g.boss && g.score > 0 && g.score >= g.nextBoss && modeRef.current !== "time") {
           const skin = Math.floor(bossRngRef.current() * BOSS_IMAGES.length);
-          // cada jefe ataca distinto: rayo, tubos o muro (en vivo, siempre el rayo, igual que en la PS4)
-          const pick = modeRef.current === "daily" ? bossRngRef.current() : Math.random();
-          const kind = inMatch ? "rayo" : BOSS_KINDS[Math.floor(pick * BOSS_KINDS.length)];
+          // cada jefe tiene su propio ataque: el mismo dibujo siempre ataca igual
+          // (en vivo, siempre el rayo, igual que en la PS4)
+          const forced = bossTestRef.current;
+          const kind = forced ?? (inMatch ? "rayo" : BOSS_KINDS[skin % BOSS_KINDS.length]);
+          bossTestRef.current = null;
           g.boss = createBoss(WIDTH, HEIGHT, kind);
           g.bossSkin = skin;
           g.nextBoss = g.score + (twist?.bossEvery ?? BOSS_EVERY);
@@ -765,9 +890,11 @@ function Game() {
             width: WIDTH,
             height: HEIGHT,
             groundHeight: GROUND_H,
+            playerX: kx,
             playerY: ky,
             playerVelocity: g.vy,
             timeScale: ts,
+            rnd: bossRngRef.current,
           });
           if (bossHits(b, kx, ky, r)) crash(false);
           if (bossStatus.finished) {
@@ -783,16 +910,18 @@ function Game() {
           }
         }
 
-      } else {
+      } else if (!pausedRef.current) {
         g.y = HEIGHT / 2 + Math.sin(g.frame * 0.08) * 12;
         g.rot = Math.sin(g.frame * 0.08) * 0.1;
       }
 
       // --- la estela elegida (arcoíris, fuego de asado, banderitas…) siguiendo al personaje ---
-      const trailMove = stateRef.current === "playing" ? g.speed * timeScale(g.powers) : g.speed;
-      g.trail.forEach((t) => (t.x -= trailMove));
-      g.trail.push({ x: kokiX, y: g.y, f: g.frame });
-      g.trail = g.trail.filter((t) => t.x > -30);
+      if (!pausedRef.current) {
+        const trailMove = stateRef.current === "playing" ? g.speed * timeScale(g.powers) : g.speed;
+        g.trail.forEach((t) => (t.x -= trailMove));
+        g.trail.push({ x: kokiX, y: g.y, f: g.frame });
+        g.trail = g.trail.filter((t) => t.x > -30);
+      }
       drawTrail(ctx, styleRef.current.trail, g.trail, g.frame);
 
       for (const p of g.pipes) {
@@ -827,7 +956,7 @@ function Game() {
       for (const c of g.coins) {
         if (c.taken) continue;
         const yy = c.y + Math.sin(c.bob) * 3;
-        if (coinImg && coinImg.complete) {
+        if (coinImg && coinImg.complete && coinImg.naturalWidth > 0) {
           ctx.save();
           ctx.translate(c.x, yy);
           const sx = Math.cos(c.bob * 0.7);
@@ -853,7 +982,7 @@ function Game() {
         ctx.beginPath();
         ctx.arc(0, 0, GOLDEN_SIZE, 0, Math.PI * 2);
         ctx.fill();
-        if (goldImg && goldImg.complete) {
+        if (goldImg && goldImg.complete && goldImg.naturalWidth > 0) {
           ctx.filter = "sepia(1) saturate(6) hue-rotate(-15deg) brightness(1.15)";
           ctx.drawImage(goldImg, -GOLDEN_SIZE / 2, -GOLDEN_SIZE / 2, GOLDEN_SIZE, GOLDEN_SIZE);
           ctx.filter = "none";
@@ -899,7 +1028,7 @@ function Game() {
           const ty = fromGapSpace(gh.y, HEIGHT);
           gh.dy = gh.dy == null ? ty : gh.dy + (ty - gh.dy) * 0.25;
           ctx.globalAlpha = 0.4;
-          if (gImg && gImg.complete) {
+          if (gImg && gImg.complete && gImg.naturalWidth > 0) {
             ctx.save();
             ctx.translate(kokiX, gh.dy);
             ctx.rotate(gh.rot);
@@ -932,7 +1061,7 @@ function Game() {
         });
       }
       const img = (selChar && imgCacheRef.current[`@${selChar.id}`]) || imgCacheRef.current[selChar?.base ?? "koki"] || imgCacheRef.current["koki"];
-      if (img && img.complete) {
+      if (img && img.complete && img.naturalWidth > 0) {
         const flapPulse = g.flap;
         const idleFlutter = Math.sin(g.frame * 0.35) * 0.06;
         const scaleY = 1 + idleFlutter - flapPulse * 0.18;
@@ -976,11 +1105,13 @@ function Game() {
 
 
       for (const p of g.particles) {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vy += p.kind === "puff" ? 0.05 : p.kind === "flame" ? -0.03 : 0.12;
-        p.vx *= 0.96;
-        p.life--;
+        if (!pausedRef.current) {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += p.kind === "puff" ? 0.05 : p.kind === "flame" ? -0.03 : 0.12;
+          p.vx *= 0.96;
+          p.life--;
+        }
         const t = p.life / p.maxLife;
         ctx.save();
         ctx.globalAlpha = Math.max(0, t);
@@ -1006,7 +1137,7 @@ function Game() {
         }
         ctx.restore();
       }
-      g.particles = g.particles.filter((p) => p.life > 0);
+      g.particles = pausedRef.current ? g.particles : g.particles.filter((p) => p.life > 0);
 
       // --- JEFE: dibujo ---
       const bs = g.boss;
@@ -1030,7 +1161,7 @@ function Game() {
           ctx.font = "bold 14px system-ui, sans-serif";
           ctx.textAlign = "center";
           ctx.fillStyle = "#fff";
-          ctx.fillText("⚔️ JEFE — ¡sobrevive!", WIDTH / 2, 158);
+          ctx.fillText(`⚔️ JEFE — ${BOSS_HINTS[bs.kind]}`, WIDTH / 2, 158);
         }
       }
 
@@ -1047,8 +1178,10 @@ function Game() {
         ctx.font = "bold 20px system-ui, sans-serif";
         ctx.textAlign = "right";
         const label = `🧁 ${g.runCoins}`;
-        ctx.strokeText(label, WIDTH - 16, 40);
-        ctx.fillText(label, WIDTH - 16, 40);
+        // en solitario se deja espacio para el botón de pausa (arriba a la derecha)
+        const coinRight = getMp().match ? WIDTH - 16 : WIDTH - 64;
+        ctx.strokeText(label, coinRight, 40);
+        ctx.fillText(label, coinRight, 40);
 
         if (modeRef.current === "hard") {
           ctx.font = "bold 16px system-ui, sans-serif";
@@ -1100,6 +1233,10 @@ function Game() {
 
     const endGame = () => {
       if (stateRef.current !== "playing") return;
+      // si se acaba la partida, no queda pausa pendiente
+      pausedRef.current = false;
+      setPaused(false);
+      clearResumeTimer();
       const g = gameRef.current;
       const runMode = modeRef.current;
       const bestKey = runMode === "hard" ? "koki-best-hard" : runMode === "time" ? "koki-best-time" : "koki-best";
@@ -1137,7 +1274,10 @@ function Game() {
 
   const goToMenu = () => {
     reset();
+    bossTestRef.current = null;
     setState("menu");
+    // la pausa detiene la música: al volver al menú se retoma
+    kickMusic();
   };
 
   const selectCharacter = (id: string) => {
@@ -1149,8 +1289,8 @@ function Game() {
 
   const tryUnlock = (id: string) => {
     if (unlocked.includes(id)) { selectCharacter(id); return; }
-    // los de logro no se compran
-    if (CHAR_BY_ID[id]?.achievement) return;
+    // los de logro y los de código secreto no se compran
+    if (CHAR_BY_ID[id]?.achievement || CHAR_BY_ID[id]?.code) return;
     const price = CHARACTERS.find((c) => c.id === id)?.price ?? 0;
     if (coins < price) return;
     const newCoins = coins - price;
@@ -1165,6 +1305,27 @@ function Game() {
     void syncSkin();
     void backupProfile();
     onCharacters(newUnlocked.length, CHARACTERS.length);
+  };
+
+  /** Personajes → "🔑 Código secreto": abre las skins que correspondan al código. */
+  const redeemSecret = () => {
+    const found = charactersForCode(codeInput);
+    if (!found.length) {
+      setCodeMsg("❌ Ese código no existe");
+      return;
+    }
+    const fresh = found.filter((c) => !unlocked.includes(c.id));
+    if (!fresh.length) {
+      setCodeMsg("🎉 Ya tienes esos personajes");
+      return;
+    }
+    const next = [...unlocked, ...fresh.map((c) => c.id)];
+    setUnlocked(next);
+    localStorage.setItem("koki-unlocked", JSON.stringify(next));
+    setCodeInput("");
+    setCodeMsg(`🎉 ¡Desbloqueaste ${fresh.map((c) => c.name).join(" y ")}!`);
+    void backupProfile();
+    onCharacters(next.length, CHARACTERS.length);
   };
 
   const tryDebug = () => {
@@ -1229,7 +1390,7 @@ function Game() {
               {/* modo sorpresa: arrastrar el logo hacia la derecha (con el dedo puesto) va
                   pasando a "Atrapa al Taz" (sin pista); tocarlo sin arrastrar, su sonido */}
               <img
-                src={menuLogo.url}
+                src={menuLogo}
                 alt="Estamos aqui con Koki"
                 draggable={false}
                 {...modeSwipe.handlers}
@@ -1448,7 +1609,11 @@ function Game() {
                           <div className="text-[0.625rem] font-bold uppercase tracking-wider text-white/70">Tocar</div>
                         )
                       ) : (
-                        c.achievement ? (
+                        c.code ? (
+                          <div className="rounded-full bg-fuchsia-400/30 px-2 py-0.5 text-center text-[0.625rem] font-black leading-tight text-fuchsia-100">
+                            🔑 Código secreto
+                          </div>
+                        ) : c.achievement ? (
                           <div className="rounded-full bg-amber-400/30 px-2 py-0.5 text-center text-[0.625rem] font-black leading-tight text-amber-100">
                             🏅 Logro: {ACHIEVEMENTS.find((a) => a.id === c.achievement)?.name}
                           </div>
@@ -1462,6 +1627,31 @@ function Game() {
                   );
                 })}
               </div>
+              )}
+              {charTab === "chars" && (
+                <div className="mt-4 rounded-2xl bg-black/30 p-3">
+                  <div className="mb-2 text-[0.6875rem] font-black uppercase tracking-widest text-white/60">
+                    🔑 Código secreto
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={codeInput}
+                      onChange={(e) => { setCodeInput(e.target.value); setCodeMsg(""); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") redeemSecret(); }}
+                      placeholder="Escribe tu código…"
+                      className="min-w-0 flex-1 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white placeholder-white/40 outline-none"
+                    />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); redeemSecret(); }}
+                      className="rounded-xl bg-gradient-to-b from-fuchsia-500 to-purple-700 px-4 py-2 text-sm font-black text-white active:translate-y-0.5"
+                    >
+                      Canjear
+                    </button>
+                  </div>
+                  {codeMsg && (
+                    <div className="mt-2 text-center text-xs font-bold text-amber-200">{codeMsg}</div>
+                  )}
+                </div>
               )}
               <button
                 onClick={(e) => { e.stopPropagation(); setCharTab("chars"); setState("menu"); }}
@@ -1478,6 +1668,55 @@ function Game() {
             <div className="text-center">
               <div className="mb-2 text-3xl font-black text-white drop-shadow">¿Listo?</div>
               <div className="text-white/90">Toca para empezar</div>
+            </div>
+          </Overlay>
+        )}
+
+        {paused && !showSettings && (
+          <Overlay>
+            <div
+              className="w-full max-w-sm rounded-3xl border-2 border-white/10 bg-gradient-to-b from-indigo-900/95 to-slate-900/95 px-6 py-6 text-center shadow-2xl"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-4xl font-black text-white drop-shadow">⏸️ PAUSA</div>
+              {resumeIn > 0 ? (
+                <div className="my-6">
+                  <div key={resumeIn} className="text-7xl font-black text-white drop-shadow" style={{ animation: "koki-count 0.7s ease-out" }}>{resumeIn}</div>
+                  <div className="mt-2 text-sm font-bold uppercase tracking-widest text-white/70">Prepárate…</div>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-2 text-sm font-bold text-white/80">
+                    Score {score} · 🧁 {gameRef.current.runCoins}
+                  </div>
+                  <div className="mt-5 flex flex-col gap-3">
+                    <button
+                      onClick={resumeGame}
+                      className="w-full rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 px-6 py-4 text-xl font-black text-white shadow-[0_0.3125rem_0_rgb(6_78_59),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(6_78_59)]"
+                    >
+                      ▶ SEGUIR
+                    </button>
+                    {mode !== "daily" && (
+                      <button
+                        onClick={() => startGame()}
+                        className="w-full rounded-full bg-gradient-to-b from-red-400 to-red-600 px-6 py-3 text-lg font-black text-white shadow-[0_0.3125rem_0_rgb(127_29_29)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(127_29_29)]"
+                      >
+                        🔄 REINICIAR
+                      </button>
+                    )}
+                    <button
+                      onClick={goToMenu}
+                      className="w-full rounded-full bg-gradient-to-b from-slate-200 to-slate-400 px-6 py-3 text-lg font-black text-slate-800 shadow-[0_0.25rem_0_rgb(71_85_105)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(71_85_105)]"
+                    >
+                      🏠 MENÚ
+                    </button>
+                  </div>
+                  <div className="mt-3 text-xs font-bold text-white/60">
+                    {mode === "daily" ? "Si sales, pierdes el intento de hoy." : "P o Esc para seguir"}
+                  </div>
+                </>
+              )}
             </div>
           </Overlay>
         )}
@@ -1543,14 +1782,30 @@ function Game() {
           </Overlay>
         )}
 
-        {(state === "playing" || state === "ready") && !showSettings && (
+        {(state === "playing" || state === "ready") && !showSettings && !paused && (
           <button
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); setShowSettings(true); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              // abrir las opciones en plena partida pausa el juego (antes Koki seguía cayendo)
+              if (stateRef.current === "playing") pauseGame();
+              setShowSettings(true);
+            }}
             aria-label="Opciones"
             className="absolute top-3 left-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-xl text-white backdrop-blur active:scale-95"
           >
             🔧
+          </button>
+        )}
+
+        {state === "playing" && !showSettings && !paused && !mp.match && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); pauseGame(); }}
+            aria-label="Pausa"
+            className="absolute top-3 right-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-xl text-white backdrop-blur active:scale-95"
+          >
+            ⏸️
           </button>
         )}
 
@@ -1664,6 +1919,25 @@ function Game() {
               <OnlineAccountSection />
 
               <div className="mb-5 rounded-2xl bg-black/30 p-3">
+                <div className="mb-2 text-sm font-bold text-white/70">👹 Probar el jefe</div>
+                <div className="grid grid-cols-4 gap-2">
+                  {BOSS_KINDS.map((kind) => (
+                    <button
+                      key={kind}
+                      onClick={() => testBoss(kind)}
+                      title={BOSS_HINTS[kind]}
+                      className="rounded-xl bg-white/10 px-1 py-2 text-[0.6875rem] font-black text-white active:scale-95"
+                    >
+                      {BOSS_TEST_LABEL[kind]}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2 text-[0.625rem] font-bold leading-tight text-white/50">
+                  Empieza una partida y el jefe sale apenas pasas la primera tubería.
+                </div>
+              </div>
+
+              <div className="mb-5 rounded-2xl bg-black/30 p-3">
                 <button
                   onClick={() => { setDebugOpen((v) => !v); setDebugMsg(""); }}
                   className="w-full text-left text-sm font-bold text-white/70"
@@ -1741,6 +2015,10 @@ function Game() {
         @keyframes koki-logo-bob {
           0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
           50% { transform: translateY(-8px) rotate(1.5deg) scale(1.03); }
+        }
+        @keyframes koki-count {
+          0% { transform: scale(1.6); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
         }
         html, body, #root { height: 100%; margin: 0; overscroll-behavior: none; }
         /* botón resaltado con el control */

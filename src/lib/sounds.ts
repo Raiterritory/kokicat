@@ -1,6 +1,7 @@
 // Simple WebAudio-generated sound effects + background music for Koki.
-import bgmAsset from "@/assets/background-music.mp3.asset.json";
-import logoAsset from "@/assets/logo-sound.mp3.asset.json";
+// Audio empaquetado en la app: suena igual en la web y en el APK, sin descargas.
+import bgmUrl from "@/assets/background-music.m4a";
+import logoUrl from "@/assets/logo-sound.mp3";
 import bossStartUrl from "@/assets/boss-start.mp3";
 
 let ctx: AudioContext | null = null;
@@ -28,7 +29,7 @@ let bgmEl: HTMLAudioElement | null = null;
 function ensureBgm(): HTMLAudioElement | null {
   if (typeof window === "undefined") return null;
   if (!bgmEl) {
-    bgmEl = new Audio(bgmAsset.url);
+    bgmEl = new Audio(bgmUrl);
     bgmEl.loop = true;
     bgmEl.preload = "auto";
     bgmEl.volume = musicVolume;
@@ -170,7 +171,7 @@ export function playBossStart() {
 export function playLogoSound() {
   if (typeof window === "undefined" || sfxVolume <= 0) return;
   if (!logoEl) {
-    logoEl = new Audio(logoAsset.url);
+    logoEl = new Audio(logoUrl);
     logoEl.preload = "auto";
   }
   logoEl.currentTime = 0;

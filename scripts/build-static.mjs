@@ -98,8 +98,23 @@ async function main() {
   console.log(`\n✔ Static build ready: dist-static/index.html`);
 }
 
-// Images / audio uploaded through Lovable are served from /__l5e/... at runtime.
-// For an offline APK they must live inside the bundle, so download them here.
+// Las imágenes y audios subidos por Lovable viven en /__l5e/... y no están en el
+// repo. Para que el APK funcione sin internet hay que meterlos en el paquete.
+// Primero se buscan en el servidor local (que ya trae los archivos del build) y,
+// si no están, se bajan de la web publicada. Si tampoco se encuentran, el build
+// falla: es mejor no publicar un APK con imágenes rotas.
+const FALLBACK_BASE = process.env.ASSET_FALLBACK ?? "https://kokicat.lovable.app";
+
+async function fetchAsset(url) {
+  try {
+    const res = await fetch(url);
+    if (res.ok) return Buffer.from(await res.arrayBuffer());
+  } catch {
+    /* servidor local apagado: se prueba la web publicada */
+  }
+  return null;
+}
+
 async function downloadUploadedAssets() {
   const base = process.env.ASSET_BASE ?? "http://localhost:8080";
   const dir = join(ROOT, "src", "assets");
@@ -109,15 +124,22 @@ async function downloadUploadedAssets() {
   for (const file of files) {
     const meta = JSON.parse(await readFile(join(dir, file), "utf8"));
     if (!meta.url?.startsWith("/")) continue;
-    const res = await fetch(base + meta.url);
-    if (!res.ok) {
-      console.error(`Could not download ${meta.url} from ${base} (${res.status}).`);
-      console.error("Set ASSET_BASE to a running URL of the app and re-run.");
+    const target = join(OUT_DIR, ...meta.url.split("/").filter(Boolean));
+    const local = join(CLIENT_DIR, ...meta.url.split("/").filter(Boolean));
+    // si el archivo ya viene dentro del build (por ejemplo, está en public/), no se descarga
+    if (existsSync(local)) {
+      await mkdir(join(target, ".."), { recursive: true });
+      await writeFile(target, await readFile(local));
+      continue;
+    }
+    const body = (await fetchAsset(base + meta.url)) ?? (await fetchAsset(FALLBACK_BASE + meta.url));
+    if (!body) {
+      console.error(`No se pudo descargar ${meta.url} ni de ${base} ni de ${FALLBACK_BASE}.`);
+      console.error("Arranca el servidor local o define ASSET_BASE / ASSET_FALLBACK.");
       process.exit(1);
     }
-    const target = join(OUT_DIR, ...meta.url.split("/").filter(Boolean));
     await mkdir(join(target, ".."), { recursive: true });
-    await writeFile(target, Buffer.from(await res.arrayBuffer()));
+    await writeFile(target, body);
     console.log(`  ↓ ${meta.url}`);
   }
 }
