@@ -13,3 +13,4 @@
 - Keep the offline APK bundle generated through `bun run build:static` with Capacitor reading `dist-static`; this guarantees local media is packaged.
 - Enforce per-viewer player visibility in database RPCs using validated player credentials and a persisted cutoff; never trust client-supplied nicknames or registration dates.
 - Keep web-only restrictions (like the daily closed hours) in `src/lib/web-hours.ts`, which detects the Android build first and fails open: the APK must always run.
+- Share the web gate across game routes; validate targeted effects through player-credential RPCs with persisted daily intervals, and keep random progress display-only so saves and rankings remain intact.
