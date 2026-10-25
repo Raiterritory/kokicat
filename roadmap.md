@@ -1,4 +1,6 @@
 # Roadmap
+- [ ] Add validated Namu-only daily random web intervals and reversible displayed progress.
+- [ ] Verify identity isolation, black screen, reopening, and Android exemption.
 - [x] Apply viewer-specific Namu visibility across rankings and player lists.
 - [x] Verify existing, new, excluded, and self visibility cases.
 - [x] Make boss shots track Koki while remaining easy to dodge.

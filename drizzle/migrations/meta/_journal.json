@@ -134,6 +134,13 @@
       "when": 1792348437623,
       "tag": "0021_grant_visibility_predicate_testing",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792886649392,
+      "tag": "0022_namu_web_random_effects",
+      "breakpoints": true
     }
   ]
 }

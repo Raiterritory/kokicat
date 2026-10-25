@@ -79,6 +79,32 @@ export type Database = {
           },
         ]
       }
+      player_web_effect_days: {
+        Row: {
+          blocked_windows: Json
+          day: string
+          player_id: string
+        }
+        Insert: {
+          blocked_windows: Json
+          day: string
+          player_id: string
+        }
+        Update: {
+          blocked_windows?: Json
+          day?: string
+          player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_web_effect_days_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       players: {
         Row: {
           best_hard: number
@@ -304,6 +330,10 @@ export type Database = {
       player_visible_to_viewer: {
         Args: { p_target: string; p_viewer: string }
         Returns: boolean
+      }
+      player_web_effects: {
+        Args: { p_id: string; p_secret: string }
+        Returns: Json
       }
       recover_player: {
         Args: { p_code: string; p_nick: string }

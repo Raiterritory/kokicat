@@ -74,6 +74,8 @@
 }
 
 :root {
+  --web-blackout: oklch(0 0 0);
+  --web-hours-closed: #0d1226;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.129 0.042 264.695);
@@ -110,6 +112,8 @@
 }
 
 .dark {
+  --web-blackout: oklch(0 0 0);
+  --web-hours-closed: #0d1226;
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
   --card: oklch(0.208 0.042 265.755);
@@ -145,6 +149,8 @@
 }
 
 @layer base {
+  .web-blackout, .web-hours-closed { position: fixed; inset: 0; background: var(--web-hours-closed); }
+  .web-blackout { background: var(--web-blackout); }
   * {
     border-color: var(--color-border);
   }

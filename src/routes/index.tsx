@@ -59,7 +59,8 @@ import {
   startMusic, stopMusic, setMusicVolume, setSfxVolume,
   getMusicVolume, getSfxVolume,
 } from "@/lib/sounds";
-import { webIsOpen } from "@/lib/web-hours";
+import { WebGate } from "@/lib/web-gate";
+import { displayedProgress, type WebEffects } from "@/lib/web-effects";
 
 // Botones de "Probar el jefe" en Opciones (para ver cada ataque sin esperar 15 puntos)
 const BOSS_TEST_LABEL: Record<BossKind, string> = {
@@ -86,21 +87,7 @@ export const Route = createFileRoute("/")({
 // La web publicada se "duerme" de 21:00 a 10:00 (hora de Chile) sin avisos: solo se ve
 // una pantalla de un color. La app de Android juega siempre (ver src/lib/web-hours.ts).
 function WebHoursGate() {
-  // El servidor siempre renderiza el juego; el cliente decide apenas monta.
-  const [open, setOpen] = useState(true);
-  useEffect(() => {
-    const apply = () => setOpen(webIsOpen());
-    apply();
-    const t = setInterval(apply, 30000);
-    return () => clearInterval(t);
-  }, []);
-  // Fuera del horario la pantalla queda en silencio: se detiene la música en el momento del cierre.
-  useEffect(() => {
-    if (!open) stopMusic();
-  }, [open]);
-  if (open) return <Game />;
-  // Sin avisos ni texto: solo una pantalla de un color hasta que vuelve a abrir.
-  return <div style={{ position: "fixed", inset: 0, background: "#0d1226" }} />;
+  return <WebGate>{effects => <Game webEffects={effects} />}</WebGate>;
 }
 
 
@@ -178,7 +165,7 @@ function loadUnlocked(): string[] {
   return ["koki"];
 }
 
-function Game() {
+function Game({ webEffects }: { webEffects: WebEffects }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgCacheRef = useRef<Record<string, HTMLImageElement>>({});
   const [score, setScore] = useState(0);
@@ -186,6 +173,9 @@ function Game() {
   const [bestHard, setBestHard] = useState(0);
   const [bestTime, setBestTime] = useState(0);
   const [coins, setCoins] = useState(0);
+  const shownCoins = displayedProgress(coins, webEffects.target ? webEffects.coins : undefined);
+  const shownBest = displayedProgress(best, webEffects.target ? webEffects.best : undefined);
+  const shownBestHard = displayedProgress(bestHard, webEffects.target ? webEffects.best : undefined);
   const [state, setState] = useState<GameState>("menu");
   const [selectedId, setSelectedId] = useState<string>("koki");
   const [unlocked, setUnlocked] = useState<string[]>(["koki"]);
@@ -1400,7 +1390,7 @@ function Game() {
               />
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5 text-white font-bold text-sm backdrop-blur">
-                  <span>🧁</span><span>{coins} pastelitos</span>
+                  <span>🧁</span><span>{shownCoins} pastelitos</span>
                 </div>
                 {streakDays > 0 && (
                   <div className="rounded-full bg-gradient-to-r from-orange-500 to-red-600 px-3 py-1.5 text-sm font-black text-white shadow">
@@ -1451,8 +1441,8 @@ function Game() {
                 🔧 OPCIONES
               </button>
               <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-widest text-white/80">
-                <span>🏆 Normal: {best}</span>
-                <span>🔥 Difícil: {bestHard}</span>
+                <span>🏆 Normal: {shownBest}</span>
+                <span>🔥 Difícil: {shownBestHard}</span>
               </div>
               </div>
             </div>
@@ -1498,14 +1488,14 @@ function Game() {
                 className="w-full rounded-2xl bg-gradient-to-b from-red-400 to-red-600 px-6 py-4 short:py-2 text-left text-white shadow-[0_0.3125rem_0_rgb(127_29_29),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(127_29_29)]"
               >
                 <div className="text-xl font-black">▶ NORMAL</div>
-                <div className="text-xs font-bold text-white/85">Velocidad constante · Récord: {best}</div>
+                <div className="text-xs font-bold text-white/85">Velocidad constante · Récord: {shownBest}</div>
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(false); startGame("hard"); }}
                 className="w-full rounded-2xl bg-gradient-to-b from-orange-400 to-rose-700 px-6 py-4 short:py-2 text-left text-white shadow-[0_0.3125rem_0_rgb(124_45_18),0_0.5rem_1rem_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_0.125rem_0_rgb(124_45_18)]"
               >
                 <div className="text-xl font-black">🔥 DIFÍCIL</div>
-                <div className="text-xs font-bold text-white/85">Cada vez más rápido · Récord: {bestHard}</div>
+                <div className="text-xs font-bold text-white/85">Cada vez más rápido · Récord: {shownBestHard}</div>
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setPickMode(false); startGame("time"); }}
@@ -1537,7 +1527,7 @@ function Game() {
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-2xl font-black text-white">Personajes</h2>
                 <div className="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1 text-white font-bold text-sm">
-                  <span>🧁</span><span>{coins}</span>
+                  <span>🧁</span><span>{shownCoins}</span>
                 </div>
               </div>
               <div className="mb-3 grid grid-cols-4 gap-1 rounded-full bg-black/30 p-1">
